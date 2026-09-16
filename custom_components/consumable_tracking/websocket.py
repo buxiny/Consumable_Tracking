@@ -1,9 +1,8 @@
-"""WebSocket 接口服务 / WebSocket API handlers for Consumable Tracking."""
+"""WebSocket API for Consumable Tracking."""
 from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING, Any
-
 import voluptuous as vol
 
 from homeassistant.components import websocket_api
@@ -14,23 +13,28 @@ from .const import (
     WS_TYPE_DELETE_ITEM,
     WS_TYPE_GET_CONFIG,
     WS_TYPE_LIST_ITEMS,
+    WS_TYPE_REORDER_ITEMS,
     WS_TYPE_RESET_ITEM,
     WS_TYPE_SAVE_ITEM,
-    WS_TYPE_REORDER_ITEMS,
     WS_TYPE_SEND_SUMMARY,
 )
 
 if TYPE_CHECKING:
+    from .notify import NotificationManager
     from .storage import ConsumableStorage
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def async_register_websocket_api(hass: HomeAssistant, storage: ConsumableStorage) -> None:
-    """注册 WebSocket API 处理器."""
+def async_register_websocket_api(
+    hass: HomeAssistant,
+    storage: ConsumableStorage,
+    notify_mgr: NotificationManager | None = None,
+) -> None:
+    """注册 Consumable Tracking 的所有前端 WebSocket 命令."""
 
     @websocket_api.websocket_command({
-        "type": WS_TYPE_LIST_ITEMS,
+        vol.Required("type"): WS_TYPE_LIST_ITEMS,
     })
     @websocket_api.async_response
     async def ws_list_items(
@@ -38,13 +42,12 @@ def async_register_websocket_api(hass: HomeAssistant, storage: ConsumableStorage
         connection: websocket_api.ActiveConnection,
         msg: dict[str, Any],
     ) -> None:
-        """获取所有耗材列表."""
         items = storage.get_items()
         connection.send_result(msg["id"], items)
 
     @websocket_api.websocket_command({
-        "type": WS_TYPE_SAVE_ITEM,
-        "item": dict,
+        vol.Required("type"): WS_TYPE_SAVE_ITEM,
+        vol.Required("item"): dict,
     })
     @websocket_api.async_response
     async def ws_save_item(
@@ -52,17 +55,13 @@ def async_register_websocket_api(hass: HomeAssistant, storage: ConsumableStorage
         connection: websocket_api.ActiveConnection,
         msg: dict[str, Any],
     ) -> None:
-        """新建或保存耗材."""
-        item_data = msg.get("item", {})
+        item_data = msg["item"]
         saved_item = await storage.async_save_item(item_data)
         connection.send_result(msg["id"], saved_item)
 
-        # 触发状态更新事件
-        hass.bus.async_fire(f"{DOMAIN}_updated", {"action": "save", "item": saved_item})
-
     @websocket_api.websocket_command({
-        "type": WS_TYPE_DELETE_ITEM,
-        "item_id": str,
+        vol.Required("type"): WS_TYPE_DELETE_ITEM,
+        vol.Required("item_id"): str,
     })
     @websocket_api.async_response
     async def ws_delete_item(
@@ -70,17 +69,13 @@ def async_register_websocket_api(hass: HomeAssistant, storage: ConsumableStorage
         connection: websocket_api.ActiveConnection,
         msg: dict[str, Any],
     ) -> None:
-        """删除耗材."""
-        item_id = msg.get("item_id", "")
+        item_id = msg["item_id"]
         success = await storage.async_delete_item(item_id)
         connection.send_result(msg["id"], {"success": success, "item_id": item_id})
 
-        # 触发状态更新事件
-        hass.bus.async_fire(f"{DOMAIN}_updated", {"action": "delete", "item_id": item_id})
-
     @websocket_api.websocket_command({
-        "type": WS_TYPE_RESET_ITEM,
-        "item_id": str,
+        vol.Required("type"): WS_TYPE_RESET_ITEM,
+        vol.Required("item_id"): str,
         vol.Optional("new_start_date"): str,
         vol.Optional("note"): str,
     })
@@ -90,20 +85,15 @@ def async_register_websocket_api(hass: HomeAssistant, storage: ConsumableStorage
         connection: websocket_api.ActiveConnection,
         msg: dict[str, Any],
     ) -> None:
-        """更换/重置耗材."""
-        item_id = msg.get("item_id", "")
-        new_start_date = msg.get("new_start_date")
-        note = msg.get("note", "")
-        res = await storage.async_reset_item(item_id, new_start_date, note)
-        connection.send_result(msg["id"], res)
-
-        # 触发状态更新事件
-        hass.bus.async_fire(f"{DOMAIN}_updated", {"action": "reset", "item": res})
-
+        item_id = msg["item_id"]
+        new_start = msg.get("new_start_date")
+        note = msg.get("note")
+        updated_item = await storage.async_reset_item(item_id, new_start, note)
+        connection.send_result(msg["id"], updated_item)
 
     @websocket_api.websocket_command({
-        "type": WS_TYPE_REORDER_ITEMS,
-        "item_ids": [str],
+        vol.Required("type"): WS_TYPE_REORDER_ITEMS,
+        vol.Required("item_ids"): [str],
     })
     @websocket_api.async_response
     async def ws_reorder_items(
@@ -111,13 +101,13 @@ def async_register_websocket_api(hass: HomeAssistant, storage: ConsumableStorage
         connection: websocket_api.ActiveConnection,
         msg: dict[str, Any],
     ) -> None:
-        """处理耗材拖拽排序."""
         item_ids = msg["item_ids"]
-        items = await storage.async_reorder_items(item_ids)
-        connection.send_result(msg["id"], items)
+        success = await storage.async_reorder_items(item_ids)
+        connection.send_result(msg["id"], {"success": success})
 
     @websocket_api.websocket_command({
-        "type": WS_TYPE_SEND_SUMMARY,
+        vol.Required("type"): WS_TYPE_SEND_SUMMARY,
+        vol.Optional("force", default=True): bool,
     })
     @websocket_api.async_response
     async def ws_send_summary(
@@ -125,15 +115,28 @@ def async_register_websocket_api(hass: HomeAssistant, storage: ConsumableStorage
         connection: websocket_api.ActiveConnection,
         msg: dict[str, Any],
     ) -> None:
-        """手动触发企业微信全量汇总报告测试."""
-        from .notify import async_send_full_summary
-        cfg = hass.data.get(DOMAIN, {}).get("config", {})
-        items = storage.get_items()
-        success = await async_send_full_summary(hass, cfg, items)
-        connection.send_result(msg["id"], {"success": success, "count": len(items)})
+        force = msg.get("force", True)
+        if notify_mgr:
+            res = await notify_mgr.async_send_summary_report(force=force)
+            if not res.get("success"):
+                connection.send_error(msg["id"], "notify_failed", res.get("error", "发送通知失败"))
+                return
+            connection.send_result(msg["id"], res)
+        else:
+            # 降级尝试服务调用
+            try:
+                await hass.services.async_call(
+                    DOMAIN,
+                    "send_summary",
+                    {"force": force},
+                    blocking=True,
+                )
+                connection.send_result(msg["id"], {"success": True})
+            except Exception as e:
+                connection.send_error(msg["id"], "service_call_failed", str(e))
 
     @websocket_api.websocket_command({
-        "type": WS_TYPE_GET_CONFIG,
+        vol.Required("type"): WS_TYPE_GET_CONFIG,
     })
     @websocket_api.async_response
     async def ws_get_config(
@@ -141,25 +144,28 @@ def async_register_websocket_api(hass: HomeAssistant, storage: ConsumableStorage
         connection: websocket_api.ActiveConnection,
         msg: dict[str, Any],
     ) -> None:
-        """获取当前系统与通知配置概要."""
-        data = hass.data.get(DOMAIN, {})
-        cfg = data.get("config", {})
+        cfg = hass.data.get(DOMAIN, {}).get("config", {})
         connection.send_result(
             msg["id"],
             {
-                "version": "1.0.4",
+                "version": "1.0.5",
                 "notify_service": cfg.get("notify_service"),
                 "due_notification": cfg.get("due_notification"),
                 "periodic_summary": cfg.get("periodic_summary"),
             },
         )
 
-    # 批量注册命令
-    websocket_api.async_register_command(hass, ws_list_items)
-    websocket_api.async_register_command(hass, ws_save_item)
-    websocket_api.async_register_command(hass, ws_delete_item)
-    websocket_api.async_register_command(hass, ws_reset_item)
-    websocket_api.async_register_command(hass, ws_reorder_items)
-    websocket_api.async_register_command(hass, ws_send_summary)
-    websocket_api.async_register_command(hass, ws_get_config)
-    _LOGGER.debug("已注册 Consumable Tracking WebSocket API")
+    # 依次安全注册各 WebSocket 命令 (忽略重复注册异常)
+    for cmd in (
+        ws_list_items,
+        ws_save_item,
+        ws_delete_item,
+        ws_reset_item,
+        ws_reorder_items,
+        ws_send_summary,
+        ws_get_config,
+    ):
+        try:
+            websocket_api.async_register_command(hass, cmd)
+        except Exception as e:
+            _LOGGER.debug("Register ws command %s: %s", getattr(cmd, "_ws_type", "unknown"), e)

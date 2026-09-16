@@ -1,46 +1,33 @@
-"""企业微信通知管理模块 / WeChat Work notification manager."""
+"""Notification helper for Consumable Tracking (WeWork Notify Integration)."""
 from __future__ import annotations
 
+from datetime import datetime, date
 import logging
-from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 
-if TYPE_CHECKING:
-    from homeassistant.core import HomeAssistant
-    from .storage import ConsumableStorage
+from homeassistant.core import HomeAssistant
 
 from .const import (
-    ATTR_CATEGORY,
-    ATTR_DURATION_UNIT,
-    ATTR_DURATION_VALUE,
-    ATTR_EXPECTED_END_DATE,
-    ATTR_HISTORY,
-    ATTR_LAST_NOTIFIED,
-    ATTR_NAME,
-    ATTR_NOTE,
-    ATTR_START_DATE,
     CONF_CHECK_TIME,
     CONF_DUE_NOTIFICATION,
-    CONF_ENABLED,
-    CONF_INTERVAL_MONTHS,
-    CONF_NOTIFY_DAY,
     CONF_NOTIFY_SERVICE,
-    CONF_NOTIFY_TIME,
     CONF_PERIODIC_SUMMARY,
-    CONF_REMIND_DAYS,
     DEFAULT_CHECK_TIME,
-    DEFAULT_INTERVAL_MONTHS,
-    DEFAULT_NOTIFY_DAY,
+    DEFAULT_DUE_REMIND_DAYS,
     DEFAULT_NOTIFY_SERVICE,
-    DEFAULT_NOTIFY_TIME,
-    DEFAULT_REMIND_DAYS,
+    DEFAULT_PERIODIC_MONTHS,
+    DEFAULT_PERIODIC_NOTIFY_DAY,
+    DEFAULT_PERIODIC_NOTIFY_TIME,
 )
+
+if TYPE_CHECKING:
+    from .storage import ConsumableStorage
 
 _LOGGER = logging.getLogger(__name__)
 
 
 class NotificationManager:
-    """耗材通知管理调度器."""
+    """管理耗材的到期提醒与定期全量汇总推送."""
 
     def __init__(
         self,
@@ -48,7 +35,6 @@ class NotificationManager:
         storage: ConsumableStorage,
         config: dict[str, Any],
     ) -> None:
-        """初始化通知器."""
         self.hass = hass
         self.storage = storage
         self.config = config
@@ -57,177 +43,202 @@ class NotificationManager:
         self.check_time: str = config.get(CONF_CHECK_TIME, DEFAULT_CHECK_TIME)
 
         due_cfg = config.get(CONF_DUE_NOTIFICATION, {})
-        self.due_enabled: bool = due_cfg.get(CONF_ENABLED, True)
-        self.remind_days: list[int] = due_cfg.get(CONF_REMIND_DAYS, DEFAULT_REMIND_DAYS)
+        self.due_enabled: bool = due_cfg.get("enabled", True)
+        self.remind_days: list[int] = due_cfg.get("remind_days", DEFAULT_DUE_REMIND_DAYS)
 
         summary_cfg = config.get(CONF_PERIODIC_SUMMARY, {})
-        self.summary_enabled: bool = summary_cfg.get(CONF_ENABLED, True)
-        self.interval_months: int = summary_cfg.get(CONF_INTERVAL_MONTHS, DEFAULT_INTERVAL_MONTHS)
-        self.notify_day: int = summary_cfg.get(CONF_NOTIFY_DAY, DEFAULT_NOTIFY_DAY)
-        self.notify_time: str = summary_cfg.get(CONF_NOTIFY_TIME, DEFAULT_NOTIFY_TIME)
+        self.summary_enabled: bool = summary_cfg.get("enabled", True)
+        self.summary_months: int = summary_cfg.get("interval_months", DEFAULT_PERIODIC_MONTHS)
+        self.summary_day: int = summary_cfg.get("notify_day", DEFAULT_PERIODIC_NOTIFY_DAY)
+        self.summary_time: str = summary_cfg.get("notify_time", DEFAULT_PERIODIC_NOTIFY_TIME)
 
-    async def _async_send_wework(self, title: str, message: str) -> None:
-        """发送企业微信消息."""
-        domain, _, service = self.notify_service.partition(".")
-        if not domain or not service:
-            domain = "notify"
-            service = "wework"
+    async def _async_send_wework(self, title: str, message: str) -> dict[str, Any]:
+        """调用企业微信通知服务 (兼容 dscao/wework_notify)."""
+        if not self.notify_service:
+            _LOGGER.warning("未配置通知服务 (notify_service)，跳过推送")
+            return {"success": False, "error": "未配置通知服务 (notify_service)"}
+
+        # 智能解析服务 domain 与 service 名称
+        svc_parts = self.notify_service.split(".", 1)
+        if len(svc_parts) == 2:
+            domain, service = svc_parts[0], svc_parts[1]
+        else:
+            domain, service = "notify", self.notify_service
+
+        # 检查服务是否存在
+        if not self.hass.services.has_service(domain, service):
+            msg = f"Home Assistant 中未找到通知服务: {domain}.{service}，请确认 configuration.yaml 中的 notify 配置"
+            _LOGGER.error(msg)
+            return {"success": False, "error": msg}
+
+        # dscao/wework_notify 规范：
+        # msgtype 推荐 textcard 或 text (兼容性最好，绝大多数版本均完美支持)
+        clean_text = message.replace("#", "").replace("**", "").replace("> ", "").strip()
+        card_desc = clean_text[:512]
 
         service_data = {
             "title": title,
             "message": message,
             "data": {
-                "msgtype": "markdown",
+                "msgtype": "textcard",
+                "textcard": {
+                    "title": title,
+                    "description": card_desc,
+                    "url": "https://work.weixin.qq.com",
+                    "btntxt": "查看详情",
+                },
             },
         }
 
         try:
-            _LOGGER.info("正在发送企业微信通知 [%s]: %s", self.notify_service, title)
+            _LOGGER.info("正在发送企业微信通知至 %s.%s: %s", domain, service, title)
             await self.hass.services.async_call(
                 domain,
                 service,
                 service_data,
                 blocking=True,
             )
+            _LOGGER.info("企业微信通知发送成功: %s", title)
+            return {"success": True}
         except Exception as err:
-            _LOGGER.error("发送企业微信通知失败 (%s): %s", self.notify_service, err)
+            _LOGGER.warning("以 textcard 发送企业微信通知失败 (%s)，尝试以纯文本降级发送...", err)
+            try:
+                # 降级尝试普通纯文本格式
+                await self.hass.services.async_call(
+                    domain,
+                    service,
+                    {"title": title, "message": f"{title}\n\n{clean_text}"},
+                    blocking=True,
+                )
+                _LOGGER.info("以纯文本降级发送企业微信通知成功: %s", title)
+                return {"success": True}
+            except Exception as fallback_err:
+                _LOGGER.error("发送企业微信通知彻底失败: %s", fallback_err)
+                return {"success": False, "error": str(fallback_err)}
 
     async def async_check_due_items(self) -> None:
-        """检查并通知即将到期或已到期的耗材."""
+        """检查单个耗材的到期状态，发送到期预警."""
         if not self.due_enabled:
             return
 
-        today = date.today()
         items = self.storage.get_items()
+        today = date.today()
+        today_str = today.strftime("%Y-%m-%d")
 
         for item in items:
-            item_id = item["id"]
-            name = item.get(ATTR_NAME, "未知耗材")
-            category = item.get(ATTR_CATEGORY, "未分类")
-            remaining_days = item.get("remaining_days", 9999)
-            last_notified: list[int] = item.get(ATTR_LAST_NOTIFIED, [])
+            rem_days = item.get("remaining_days")
+            if rem_days is None:
+                continue
 
-            # 判断是否触发配置的提醒天数（如 14, 7, 0 天）
-            triggered_tier = None
-            for tier in sorted(self.remind_days, reverse=True):
-                # 如果当前剩余天数小于等于该梯度，且该梯度未曾通知过
-                if remaining_days <= tier and tier not in last_notified:
-                    triggered_tier = tier
-                    break
+            # 判断是否命中预警阶梯天数
+            matched_step = None
+            if rem_days in self.remind_days:
+                matched_step = rem_days
+            elif rem_days < 0 and -rem_days in self.remind_days:
+                matched_step = rem_days
 
-            if triggered_tier is not None:
-                # 组织 Markdown 消息
-                if remaining_days < 0:
-                    status_desc = f"🚨 **已超期 {abs(remaining_days)} 天**"
-                elif remaining_days == 0:
-                    status_desc = "⚠️ **今日到期，请及时更换！**"
-                else:
-                    status_desc = f"⚠️ 距离预设到期还有 **{remaining_days} 天**"
+            if matched_step is None:
+                continue
 
-                start_ym = item.get("start_ym", "")
-                expected_ym = item.get("expected_ym", "")
-                dur_val = item.get(ATTR_DURATION_VALUE, 12)
-                dur_unit = "个月" if item.get(ATTR_DURATION_UNIT) == "month" else "天"
+            step_key = str(matched_step)
+            last_notified = item.get("last_notified", {})
+            if last_notified.get(step_key) == today_str:
+                continue
 
-                # 历史对比数据提取
-                history_list = item.get(ATTR_HISTORY, [])
-                history_text = "暂无过往记录"
-                if history_list:
-                    last_h = history_list[0]
-                    history_text = f"上次使用周期 {last_h.get('start_date')}~{last_h.get('end_date')} (共 {last_h.get('duration_desc')})"
+            # 构建消息
+            name = item.get("name", "未命名耗材")
+            category = item.get("category", "日常")
+            start = item.get("start_date", "")
+            exp_end = item.get("expected_end_date", "")
+            cycle = f"{item.get('duration_value', 12)}个{item.get('duration_unit', '月')}"
+            note = item.get("note", "无")
 
-                note = item.get(ATTR_NOTE) or "无"
+            hist = item.get("history", [])
+            last_hist_str = "无"
+            if hist:
+                h = hist[0]
+                last_hist_str = f"{h.get('start_date', '')}~{h.get('end_date', '')} (实际用{h.get('duration_desc', '')})"
 
-                message = (
-                    f"### 🔔【家庭耗材到期提醒】\n"
-                    f"**耗材名称**：{name}\n"
-                    f"**所属分类**：{category}\n"
-                    f"**当前状态**：{status_desc}\n"
-                    f"**开始时间**：{start_ym}\n"
-                    f"**预设结束**：{expected_ym}（预设周期 {dur_val}{dur_unit}）\n"
-                    f"**历史对比**：{history_text}\n"
-                    f"**规格备忘**：{note}\n\n"
-                    f"> 请提前选购或准备更换；更换后请进入 Home Assistant 耗材卡片点击【已更换】重置。"
-                )
+            if rem_days > 0:
+                status_text = f"⚠️ 距离预设到期还有 {rem_days} 天"
+                title = f"🔔【耗材到期预警】{name} 即将到期"
+            elif rem_days == 0:
+                status_text = "🚨 今日正式到期，请及时更换！"
+                title = f"🚨【耗材到期提醒】{name} 今日到期"
+            else:
+                status_text = f"❌ 已超期 {-rem_days} 天，请尽快维护！"
+                title = f"❌【耗材超期提醒】{name} 已超期"
 
-                title = f"耗材到期提醒: {name} (剩{remaining_days}天)" if remaining_days >= 0 else f"耗材超期预警: {name}"
-                await self._async_send_wework(title, message)
+            msg_lines = [
+                f"【耗材名称】：{name}",
+                f"【所属分类】：{category}",
+                f"【当前状态】：{status_text}",
+                f"【启用时间】：{start}",
+                f"【预设到期】：{exp_end} (周期 {cycle})",
+                f"【上期历史】：{last_hist_str}",
+                f"【规格备忘】：{note}",
+                "提示：更换后请在 Home Assistant 卡片中点击【已更换】重置周期。",
+            ]
+            message = "\n".join(msg_lines)
 
-                # 更新已通知梯度
-                last_notified.append(triggered_tier)
-                raw_item = self.storage.get_item(item_id)
-                if raw_item:
-                    raw_item[ATTR_LAST_NOTIFIED] = last_notified
-                    await self.storage.async_save_item(raw_item)
+            result = await self._async_send_wework(title, message)
+            if result.get("success"):
+                last_notified[step_key] = today_str
+                await self.storage.async_save_item({
+                    "id": item["id"],
+                    "last_notified": last_notified,
+                })
 
-    async def async_send_summary_report(self, force: bool = False) -> None:
-        """生成并发送全量耗材季度汇总报告."""
-        today = date.today()
-        last_summary = self.storage.get_last_summary_date()
-
-        if not force:
-            if not self.summary_enabled:
-                return
-            # 检查是否满足月份间隔
-            if last_summary:
-                try:
-                    last_dt = datetime.strptime(last_summary, "%Y-%m-%d").date()
-                    # 估算月份差
-                    diff_months = (today.year - last_dt.year) * 12 + (today.month - last_dt.month)
-                    if diff_months < self.interval_months:
-                        _LOGGER.debug("未达季度汇总通知月份间隔 (%d < %d)", diff_months, self.interval_months)
-                        return
-                except Exception:
-                    pass
-
+    async def async_send_summary_report(self, force: bool = False) -> dict[str, Any]:
+        """生成全量耗材使用总览报告并推送到企业微信."""
         items = self.storage.get_items()
-        if not items:
-            _LOGGER.info("当前无任何耗材记录，跳过汇总报告发送")
-            return
+        today = date.today()
+        today_str = today.strftime("%Y-%m-%d")
 
-        expired_items = []
+        total_count = len(items)
+        if total_count == 0 and not force:
+            return {"success": True, "message": "暂无耗材"}
+
+        overdue_items = []
         warning_items = []
-        good_items = []
+        normal_items = []
 
         for it in items:
-            status = it.get("status")
-            rem = it.get("remaining_days", 0)
-            name = it.get(ATTR_NAME, "未知")
-            dur = f"{it.get(ATTR_DURATION_VALUE)}{'个月' if it.get(ATTR_DURATION_UNIT) == 'month' else '天'}"
-            prog = f"{it.get('progress', 0)}%"
+            rem = it.get("remaining_days", 9999)
+            name = it.get("name", "未命名")
+            prog = it.get("progress_pct", 0)
+            cycle = f"{it.get('duration_value', 12)}个{it.get('duration_unit', '月')}"
 
-            if status == "expired":
-                expired_items.append(f"- **{name}**: 已超期 {abs(rem)} 天 (预设周期 {dur})")
-            elif status == "warning":
-                expired_desc = "今日到期" if rem == 0 else f"剩余 {rem} 天"
-                warning_items.append(f"- **{name}**: {expired_desc} (进度 {prog}，周期 {dur})")
+            if rem < 0:
+                overdue_items.append(f"• {name}: 已超期 {-rem} 天 (预设 {cycle})")
+            elif rem <= 30:
+                warning_items.append(f"• {name}: 剩余 {rem} 天 (进度 {prog}%)")
             else:
-                good_items.append(f"- **{name}**: 剩余 {rem} 天 (进度 {prog})")
+                normal_items.append(f"• {name}: 剩余 {rem} 天 (进度 {prog}%)")
 
+        title = "📊【家庭耗材与事务】使用总览报告"
         lines = [
-            "### 📊【家庭耗材与事务跟踪】季度使用总览",
-            f"统计日期：{today.strftime('%Y-%m-%d')}\n",
+            f"统计时间：{today_str}",
+            f"跟踪总数：共 {total_count} 项",
+            "",
         ]
 
-        if expired_items:
-            lines.append(f"🔴 **已超期 / 急需更换** ({len(expired_items)}项)")
-            lines.extend(expired_items)
+        if overdue_items:
+            lines.append(f"🔴 已超期/急需更换 ({len(overdue_items)}项):")
+            lines.extend(overdue_items)
             lines.append("")
 
         if warning_items:
-            lines.append(f"🟡 **近期到期预警** ({len(warning_items)}项)")
+            lines.append(f"🟡 近期即将到期 ({len(warning_items)}项):")
             lines.extend(warning_items)
             lines.append("")
 
-        if good_items:
-            lines.append(f"🟢 **状态良好 (持续跟踪中)** ({len(good_items)}项)")
-            lines.extend(good_items[:10])  # 良好状态最多显示10条，避免超长
-            if len(good_items) > 10:
-                lines.append(f"- ... 及其他 {len(good_items) - 10} 项良好耗材")
+        if normal_items:
+            lines.append(f"🟢 运行状态良好 ({len(normal_items)}项):")
+            lines.extend(normal_items)
             lines.append("")
 
-        lines.append(f"> 共有 {len(items)} 项耗材与家庭维护事务在跟踪监控中。")
+        lines.append("打开 Home Assistant 耗材跟踪卡片即可快速重置或调整。")
+        message = "\n".join(lines)
 
-        title = f"耗材季度总览: {len(expired_items)}项超期, {len(warning_items)}项临期"
-        await self._async_send_wework(title, "\n".join(lines))
-        await self.storage.async_set_last_summary_date(today.strftime("%Y-%m-%d"))
+        return await self._async_send_wework(title, message)

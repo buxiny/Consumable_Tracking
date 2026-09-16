@@ -847,18 +847,21 @@ class ConsumableTrackingCard extends HTMLElement {
         testNotifyBtn.classList.add('loading');
         testNotifyBtn.title = '正在发送通知...';
         try {
+          let res = null;
           // 优先通过 WebSocket 发送总览报告
           if (this._hass && this._hass.callWS) {
-            await this._hass.callWS({
-              type: 'consumable_tracking/send_summary'
+            res = await this._hass.callWS({
+              type: 'consumable_tracking/send_summary',
+              force: true
             });
           } else if (this._hass && this._hass.callService) {
-            await this._hass.callService('consumable_tracking', 'send_summary', {});
+            await this._hass.callService('consumable_tracking', 'send_summary', { force: true });
           }
-          alert('耗材全量使用总览通知已成功触发发送！请在企业微信中查收。');
+          alert('耗材全量使用总览通知已成功发送！请在企业微信中查收。');
         } catch (err) {
           console.error('发送通知失败:', err);
-          alert('发送通知失败: ' + (err.message || err));
+          let errText = err && (err.message || err.error || err.code || JSON.stringify(err));
+          alert('发送通知失败: ' + errText);
         } finally {
           testNotifyBtn.classList.remove('loading');
           testNotifyBtn.title = '发送全量耗材总览通知到企业微信 (测试)';
