@@ -26,7 +26,7 @@ class ConsumableTrackingCard extends HTMLElement {
 
   setConfig(config) {
     this._config = {
-      title: config.title || '家庭耗材与事务跟踪',
+      title: config.title || '耗材与事务跟踪',
       show_add: config.show_add !== false,
       filter_category: config.filter_category || null,
       ...config
@@ -40,7 +40,7 @@ class ConsumableTrackingCard extends HTMLElement {
 
   static getStubConfig() {
     return {
-      title: '家庭耗材与事务跟踪',
+      title: '耗材与事务跟踪',
       show_add: true
     };
   }
@@ -1159,7 +1159,9 @@ class ConsumableTrackingCard extends HTMLElement {
   }
 }
 
-customElements.define('consumable-tracking-card', ConsumableTrackingCard);
+if (!customElements.get('consumable-tracking-card')) {
+  customElements.define('consumable-tracking-card', ConsumableTrackingCard);
+}
 
 window.customCards = window.customCards || [];
 window.customCards.push({

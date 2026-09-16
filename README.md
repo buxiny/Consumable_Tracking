@@ -126,7 +126,7 @@ consumable_tracking:
 
 ```yaml
 type: custom:consumable-tracking-card
-title: 家庭耗材与事务跟踪
+title: 耗材与事务跟踪
 show_add: true
 ```
 
@@ -135,7 +135,7 @@ show_add: true
 | 参数名 | 类型 | 默认值 | 说明 |
 | :--- | :--- | :--- | :--- |
 | `type` | string | `custom:consumable-tracking-card` | **必填**，自定义卡片类型 |
-| `title` | string | `家庭耗材与事务跟踪` | 卡片顶部显示的标题 |
+| `title` | string | `耗材与事务跟踪` | 卡片顶部显示的标题 |
 | `show_add` | boolean | `true` | 是否在卡片右上角显示“新建耗材”按钮 |
 | `filter_category` | string | `null` | 可选，只显示指定分类（如 `滤芯` 或 `电池`） |
 

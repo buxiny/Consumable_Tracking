@@ -216,7 +216,7 @@ class NotificationManager:
             else:
                 normal_items.append(f"• {name}: 剩余 {rem} 天 (进度 {prog}%)")
 
-        title = "📊【家庭耗材与事务】使用总览报告"
+        title = "📊【耗材与事务跟踪】使用总览报告"
         lines = [
             f"统计时间：{today_str}",
             f"跟踪总数：共 {total_count} 项",
