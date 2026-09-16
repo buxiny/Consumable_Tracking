@@ -190,6 +190,73 @@ class ConsumableTrackingCard extends HTMLElement {
         .btn-add:hover {
           opacity: 0.9;
         }
+        .header-actions-group {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .btn-notify-test {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 30px;
+          height: 30px;
+          background: var(--secondary-background-color, #f3f4f6);
+          color: var(--secondary-text-color, #4b5563);
+          border: 1px solid var(--divider-color, #e5e7eb);
+          border-radius: 6px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          box-sizing: border-box;
+        }
+        .btn-notify-test ha-icon {
+          --mdc-icon-size: 16px;
+        }
+        .btn-notify-test:hover {
+          background: var(--primary-color, #0097a7);
+          color: #ffffff;
+          border-color: var(--primary-color, #0097a7);
+          transform: translateY(-1px);
+        }
+        .btn-notify-test.loading {
+          opacity: 0.5;
+          pointer-events: none;
+        }
+        .item-card {
+          transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+        }
+        .item-card.dragging {
+          opacity: 0.45;
+          transform: scale(0.98);
+          border: 2px dashed var(--primary-color, #0097a7);
+        }
+        .item-card.drag-over-top {
+          border-top: 3px solid var(--primary-color, #0097a7) !important;
+        }
+        .item-card.drag-over-bottom {
+          border-bottom: 3px solid var(--primary-color, #0097a7) !important;
+        }
+        .drag-handle {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: var(--disabled-text-color, #9ca3af);
+          cursor: grab;
+          padding: 2px;
+          margin-right: 2px;
+          border-radius: 4px;
+          transition: color 0.15s;
+        }
+        .drag-handle ha-icon {
+          --mdc-icon-size: 18px;
+        }
+        .drag-handle:hover {
+          color: var(--primary-color, #0097a7);
+          background: rgba(0, 0, 0, 0.04);
+        }
+        .drag-handle:active {
+          cursor: grabbing;
+        }
 
         /* 分类筛选 Chip */
         .category-chips {
@@ -533,12 +600,17 @@ class ConsumableTrackingCard extends HTMLElement {
             <h2 class="card-title">${this._config.title}</h2>
             <span class="item-count-badge">${displayItems.length}项</span>
           </div>
-          ${this._config.show_add ? `
-            <button class="btn-add" id="openAddBtn">
-              <ha-icon icon="mdi:plus"></ha-icon>
-              新建耗材
+          <div class="header-actions-group">
+            <button class="btn-notify-test" id="testNotifyBtn" title="发送全量耗材总览通知到企业微信 (测试)">
+              <ha-icon icon="mdi:bell-ring-outline"></ha-icon>
             </button>
-          ` : ''}
+            ${this._config.show_add ? `
+              <button class="btn-add" id="openAddBtn">
+                <ha-icon icon="mdi:plus"></ha-icon>
+                新建耗材
+              </button>
+            ` : ''}
+          </div>
         </div>
 
         <!-- 分类 Chip 过滤 (当分类 > 1 时显示) -->
@@ -595,10 +667,13 @@ class ConsumableTrackingCard extends HTMLElement {
       : '暂无过往完成记录';
 
     return `
-      <div class="item-card" data-id="${item.id}">
+      <div class="item-card" data-id="${item.id}" draggable="true">
         <!-- 顶部信息 -->
         <div class="item-header">
           <div class="item-info">
+            <div class="drag-handle" title="按住拖拽排序">
+              <ha-icon icon="mdi:drag-vertical"></ha-icon>
+            </div>
             <div class="item-icon">
               <ha-icon icon="${item.icon || 'mdi:package-variant'}"></ha-icon>
             </div>
@@ -764,6 +839,104 @@ class ConsumableTrackingCard extends HTMLElement {
   _bindEvents() {
     const root = this.shadowRoot;
 
+    // 测试通知按钮 (🔔)
+    const testNotifyBtn = root.querySelector('#testNotifyBtn');
+    if (testNotifyBtn) {
+      testNotifyBtn.onclick = async () => {
+        if (testNotifyBtn.classList.contains('loading')) return;
+        testNotifyBtn.classList.add('loading');
+        testNotifyBtn.title = '正在发送通知...';
+        try {
+          // 优先通过 WebSocket 发送总览报告
+          if (this._hass && this._hass.callWS) {
+            await this._hass.callWS({
+              type: 'consumable_tracking/send_summary'
+            });
+          } else if (this._hass && this._hass.callService) {
+            await this._hass.callService('consumable_tracking', 'send_summary', {});
+          }
+          alert('耗材全量使用总览通知已成功触发发送！请在企业微信中查收。');
+        } catch (err) {
+          console.error('发送通知失败:', err);
+          alert('发送通知失败: ' + (err.message || err));
+        } finally {
+          testNotifyBtn.classList.remove('loading');
+          testNotifyBtn.title = '发送全量耗材总览通知到企业微信 (测试)';
+        }
+      };
+    }
+
+    // 拖拽排序逻辑 (Drag and Drop)
+    const itemCards = root.querySelectorAll('.item-card');
+    itemCards.forEach(card => {
+      card.addEventListener('dragstart', (e) => {
+        this._draggedId = card.dataset.id;
+        card.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', card.dataset.id);
+      });
+
+      card.addEventListener('dragend', () => {
+        card.classList.remove('dragging');
+        itemCards.forEach(c => {
+          c.classList.remove('drag-over-top', 'drag-over-bottom');
+        });
+        this._draggedId = null;
+      });
+
+      card.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (!this._draggedId || this._draggedId === card.dataset.id) return;
+
+        const rect = card.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        if (e.clientY < midY) {
+          card.classList.add('drag-over-top');
+          card.classList.remove('drag-over-bottom');
+        } else {
+          card.classList.add('drag-over-bottom');
+          card.classList.remove('drag-over-top');
+        }
+      });
+
+      card.addEventListener('dragleave', () => {
+        card.classList.remove('drag-over-top', 'drag-over-bottom');
+      });
+
+      card.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        const targetId = card.dataset.id;
+        const draggedId = this._draggedId || e.dataTransfer.getData('text/plain');
+        card.classList.remove('drag-over-top', 'drag-over-bottom');
+        if (!draggedId || draggedId === targetId) return;
+
+        const rect = card.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        const insertBefore = e.clientY < midY;
+
+        // 计算新顺序数组
+        const currentIds = this._items.map(i => i.id);
+        const fromIdx = currentIds.indexOf(draggedId);
+        if (fromIdx === -1) return;
+        currentIds.splice(fromIdx, 1);
+
+        let toIdx = currentIds.indexOf(targetId);
+        if (!insertBefore) {
+          toIdx += 1;
+        }
+        currentIds.splice(toIdx, 0, draggedId);
+
+        // 前端立刻重排并更新显示
+        const itemMap = new Map(this._items.map(i => [i.id, i]));
+        this._items = currentIds.map(id => itemMap.get(id)).filter(Boolean);
+        this._render();
+
+        // 异步保存到后端存储
+        await this._saveReorder(currentIds);
+      });
+    });
+
     // 新建按钮
     const addBtn = root.querySelector('#openAddBtn');
     if (addBtn) {
@@ -924,6 +1097,23 @@ class ConsumableTrackingCard extends HTMLElement {
       this._showModal = false;
       this._editItem = null;
       setTimeout(() => this._fetchItems(), 500);
+    }
+  }
+
+  async _saveReorder(orderedIds) {
+    try {
+      if (this._hass && this._hass.callWS) {
+        await this._hass.callWS({
+          type: 'consumable_tracking/reorder_items',
+          ordered_ids: orderedIds
+        });
+      } else if (this._hass && this._hass.callService) {
+        await this._hass.callService('consumable_tracking', 'reorder_items', {
+          ordered_ids: orderedIds
+        });
+      }
+    } catch (err) {
+      console.error('保存排序失败:', err);
     }
   }
 

@@ -145,7 +145,7 @@ class ConsumableStorage:
         await self._store.async_save(data)
 
     def get_items(self) -> list[dict[str, Any]]:
-        """获取所有耗材数据 (按创建/状态排序，附带动态计算指标)."""
+        """获取所有耗材数据 (按自定义顺序排序，附带动态计算指标)."""
         result = []
         for item_id, it in self._items.items():
             item_copy = dict(it)
@@ -153,8 +153,8 @@ class ConsumableStorage:
             metrics = compute_item_metrics(item_copy)
             item_copy.update(metrics)
             result.append(item_copy)
-        # 按剩余天数升序排列，越紧急的排在越前面
-        result.sort(key=lambda x: x.get("remaining_days", 9999))
+        # 优先按照 order 升序排列；若无 order，按创建时间排列
+        result.sort(key=lambda x: (x.get("order", 999999), x.get("created_at", "")))
         return result
 
     def get_item(self, item_id: str) -> dict[str, Any] | None:
@@ -184,6 +184,11 @@ class ConsumableStorage:
         )
 
         existing = self._items.get(item_id, {})
+        # 保留原有的排序位置
+        if "order" in existing and "order" not in data:
+            data["order"] = existing["order"]
+        elif "order" not in data:
+            data["order"] = len(self._items)
         history = data.get(ATTR_HISTORY, existing.get(ATTR_HISTORY, []))
         last_notified = data.get(ATTR_LAST_NOTIFIED, existing.get(ATTR_LAST_NOTIFIED, []))
 
@@ -214,6 +219,18 @@ class ConsumableStorage:
             await self.async_save()
             _LOGGER.info("删除耗材记录: %s", item_id)
             return True
+
+    async def async_reorder_items(self, item_ids: list[str]) -> list[dict[str, Any]]:
+        """更新耗材的排序顺序 (拖拽重排)."""
+        changed = False
+        for idx, item_id in enumerate(item_ids):
+            if item_id in self._items:
+                if self._items[item_id].get("order") != idx:
+                    self._items[item_id]["order"] = idx
+                    changed = True
+        if changed:
+            await self._async_save()
+        return self.get_items()
         return False
 
     async def async_reset_item(

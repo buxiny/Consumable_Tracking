@@ -40,6 +40,7 @@ from .const import (
     SERVICE_ADD_ITEM,
     SERVICE_DELETE_ITEM,
     SERVICE_RESET_ITEM,
+    SERVICE_REORDER_ITEMS,
     SERVICE_SEND_SUMMARY,
     SERVICE_TRIGGER_CHECK,
     SERVICE_UPDATE_ITEM,
@@ -205,6 +206,13 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     async def handle_trigger_check(call: ServiceCall) -> None:
         await notify_mgr.async_check_due_items()
 
+
+    async def handle_reorder_items(call: ServiceCall) -> None:
+        """服务：调整耗材顺序."""
+        item_ids = call.data.get("item_ids", [])
+        if isinstance(item_ids, list):
+            await storage.async_reorder_items(item_ids)
+
     async def handle_send_summary(call: ServiceCall) -> None:
         force = call.data.get("force", True)
         await notify_mgr.async_send_summary_report(force=force)
@@ -214,6 +222,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     hass.services.async_register(DOMAIN, SERVICE_DELETE_ITEM, handle_delete_item)
     hass.services.async_register(DOMAIN, SERVICE_RESET_ITEM, handle_reset_item)
     hass.services.async_register(DOMAIN, SERVICE_TRIGGER_CHECK, handle_trigger_check)
+    hass.services.async_register(DOMAIN, SERVICE_REORDER_ITEMS, handle_reorder_items)
     hass.services.async_register(DOMAIN, SERVICE_SEND_SUMMARY, handle_send_summary)
 
     _LOGGER.info("consumable_tracking (耗材与事务跟踪) 插件初始化成功")

@@ -47,12 +47,15 @@ SERVICE_DELETE_ITEM = "delete_item"
 SERVICE_RESET_ITEM = "reset_item"
 SERVICE_TRIGGER_CHECK = "trigger_check"
 SERVICE_SEND_SUMMARY = "send_summary"
+SERVICE_REORDER_ITEMS = "reorder_items"
 
-# WebSocket 命令前缀
+# WebSocket 接口定义
 WS_TYPE_LIST_ITEMS = f"{DOMAIN}/list_items"
 WS_TYPE_SAVE_ITEM = f"{DOMAIN}/save_item"
 WS_TYPE_DELETE_ITEM = f"{DOMAIN}/delete_item"
 WS_TYPE_RESET_ITEM = f"{DOMAIN}/reset_item"
+WS_TYPE_REORDER_ITEMS = f"{DOMAIN}/reorder_items"
+WS_TYPE_SEND_SUMMARY = f"{DOMAIN}/send_summary"
 WS_TYPE_GET_CONFIG = f"{DOMAIN}/get_config"
 
 # 卡片前端静态资源路径

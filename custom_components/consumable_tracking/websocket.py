@@ -16,6 +16,8 @@ from .const import (
     WS_TYPE_LIST_ITEMS,
     WS_TYPE_RESET_ITEM,
     WS_TYPE_SAVE_ITEM,
+    WS_TYPE_REORDER_ITEMS,
+    WS_TYPE_SEND_SUMMARY,
 )
 
 if TYPE_CHECKING:
@@ -98,6 +100,38 @@ def async_register_websocket_api(hass: HomeAssistant, storage: ConsumableStorage
         # 触发状态更新事件
         hass.bus.async_fire(f"{DOMAIN}_updated", {"action": "reset", "item": res})
 
+
+    @websocket_api.websocket_command({
+        "type": WS_TYPE_REORDER_ITEMS,
+        "item_ids": [str],
+    })
+    @websocket_api.async_response
+    async def ws_reorder_items(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict[str, Any],
+    ) -> None:
+        """处理耗材拖拽排序."""
+        item_ids = msg["item_ids"]
+        items = await storage.async_reorder_items(item_ids)
+        connection.send_result(msg["id"], items)
+
+    @websocket_api.websocket_command({
+        "type": WS_TYPE_SEND_SUMMARY,
+    })
+    @websocket_api.async_response
+    async def ws_send_summary(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict[str, Any],
+    ) -> None:
+        """手动触发企业微信全量汇总报告测试."""
+        from .notify import async_send_full_summary
+        cfg = hass.data.get(DOMAIN, {}).get("config", {})
+        items = storage.get_items()
+        success = await async_send_full_summary(hass, cfg, items)
+        connection.send_result(msg["id"], {"success": success, "count": len(items)})
+
     @websocket_api.websocket_command({
         "type": WS_TYPE_GET_CONFIG,
     })
@@ -113,7 +147,7 @@ def async_register_websocket_api(hass: HomeAssistant, storage: ConsumableStorage
         connection.send_result(
             msg["id"],
             {
-                "version": "1.0.3",
+                "version": "1.0.4",
                 "notify_service": cfg.get("notify_service"),
                 "due_notification": cfg.get("due_notification"),
                 "periodic_summary": cfg.get("periodic_summary"),
@@ -125,5 +159,7 @@ def async_register_websocket_api(hass: HomeAssistant, storage: ConsumableStorage
     websocket_api.async_register_command(hass, ws_save_item)
     websocket_api.async_register_command(hass, ws_delete_item)
     websocket_api.async_register_command(hass, ws_reset_item)
+    websocket_api.async_register_command(hass, ws_reorder_items)
+    websocket_api.async_register_command(hass, ws_send_summary)
     websocket_api.async_register_command(hass, ws_get_config)
     _LOGGER.debug("已注册 Consumable Tracking WebSocket API")
