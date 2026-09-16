@@ -10,7 +10,8 @@ import voluptuous as vol
 
 from homeassistant.components.frontend import async_register_built_in_panel
 from homeassistant.components.http import StaticPathConfig
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
+from homeassistant.core import CoreState, HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.discovery import async_load_platform
 from homeassistant.helpers.event import async_track_time_change
@@ -104,13 +105,43 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     else:
         hass.http.register_static_path(CARD_URL, card_path, cache_headers=False)
 
-    # 尝试自动注入 Lovelace 资源 (免用户手动添加 Resources)
+    # 4. 自动注入前端 extra_js_url 与 Lovelace 资源 (免用户手动添加 Resources)
     try:
-        if hasattr(hass.data, "get") and "frontend_panels" in hass.data:
-            # 兼容 HA 现代前端资源注册
-            pass
+        from homeassistant.components.frontend import add_extra_js_url
+        add_extra_js_url(hass, f"{CARD_URL}?v=1.0.1")
+        _LOGGER.debug("已通过 add_extra_js_url 自动注入前端卡片")
     except Exception as ex:
-        _LOGGER.debug("注册前端卡片资源跳过: %s", ex)
+        _LOGGER.debug("add_extra_js_url 注入失败或不可用: %s", ex)
+
+    # 同时尝试自动注册至 Lovelace storage resources (兼容 Cast 及原生加载)
+    async def _async_register_lovelace_resource(_event=None) -> None:
+        try:
+            lovelace = hass.data.get("lovelace")
+            if lovelace and hasattr(lovelace, "resources"):
+                resources = lovelace.resources
+                if not getattr(resources, "loaded", True) and hasattr(resources, "async_load"):
+                    await resources.async_load()
+                
+                # 检查是否已存在
+                existing = [
+                    r for r in resources.async_items()
+                    if r.get("url", "").split("?")[0] == CARD_URL
+                ]
+                if not existing:
+                    _LOGGER.info("正在自动向 Lovelace 添加 consumable-tracking-card 资源")
+                    await resources.async_create_item({
+                        "res_type": "module",
+                        "url": f"{CARD_URL}?v=1.0.1",
+                    })
+                else:
+                    _LOGGER.debug("Lovelace 资源中已存在 consumable-tracking-card")
+        except Exception as err:
+            _LOGGER.debug("自动向 Lovelace 注册资源跳过: %s", err)
+
+    if hass.state == CoreState.running:
+        await _async_register_lovelace_resource()
+    else:
+        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _async_register_lovelace_resource)
 
     # 4. 注册 WebSocket API
     async_register_websocket_api(hass, storage)

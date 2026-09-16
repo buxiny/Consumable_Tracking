@@ -137,8 +137,17 @@ show_add: true
 | `show_add` | boolean | `true` | 是否在卡片右上角显示“新建耗材”按钮 |
 | `filter_category` | string | `null` | 可选，只显示指定分类（如 `滤芯` 或 `电池`） |
 
-> **手动添加资源提示**（如遇某些版本未自动引入）：  
-> 在 **设置** -> **控制面板** -> **资源 (Resources)** 中添加 URL：`/consumable_tracking/consumable-tracking-card.js`，资源类型选择 `JavaScript 模块`。
+> **常见问题排查与资源添加**：  
+> 1. **为什么报 `Custom element doesn't exist`？**
+>    - 请务必确认已在 `configuration.yaml` 中添加 `consumable_tracking:` 并**完全重启了 Home Assistant**。
+>    - 插件启动时会自动通过 `frontend.add_extra_js_url` 注入卡片资源。
+> 2. **手动添加资源入口（如需手动配置）：**
+>    - **快捷跳转（最推荐）**：在 Home Assistant 任意页面按下键盘快捷键 `Ctrl + K`（Mac 为 `Cmd + K`），直接搜索“**资源**”或“**Resources**”，回车即可直达。
+>    - **菜单入口**：进入 **设置 (Settings)** -> **仪表盘 (Dashboards)** -> 点击页面右上角的 **三个点 (⋮)** -> 选择 **资源 (Resources)**。
+>    - 点击右下角【添加资源】：
+>      - **URL**：`/consumable_tracking/consumable-tracking-card.js`
+>      - **资源类型**：选择 `JavaScript 模块 (JavaScript Module)`
+>    - 保存后按 `Ctrl + F5` 强制刷新浏览器缓存即可正常显示卡片。
 
 ---
 
