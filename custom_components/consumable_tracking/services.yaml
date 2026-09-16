@@ -1,0 +1,151 @@
+add_item:
+  name: 添加耗材或事务
+  description: 手动添加一个新的耗材或维护跟踪项。
+  fields:
+    name:
+      name: 耗材名称
+      description: 耗材或事务的名称，如“净水器RO滤芯”。
+      required: true
+      example: 净水器RO滤芯
+      selector:
+        text:
+    category:
+      name: 分类
+      description: 耗材分类，如“滤芯”、“电池”、“维护”。
+      required: false
+      default: 通用
+      example: 滤芯
+      selector:
+        text:
+    icon:
+      name: 图标
+      description: MDI 图标名称。
+      required: false
+      default: mdi:package-variant
+      example: mdi:water-filter
+      selector:
+        icon:
+    start_date:
+      name: 开始日期
+      description: 本次更换开始的日期 (YYYY-MM-DD 或 YYYY-MM)。
+      required: false
+      example: "2025-05-01"
+      selector:
+        text:
+    duration_value:
+      name: 预设有效周期数值
+      description: 有效周期的数量，如 12。
+      required: false
+      default: 12
+      example: 12
+      selector:
+        number:
+          min: 1
+          max: 120
+          mode: box
+    duration_unit:
+      name: 周期单位
+      description: 周期时间单位 (month / day / year)。
+      required: false
+      default: month
+      selector:
+        select:
+          options:
+            - label: 月
+              value: month
+            - label: 天
+              value: day
+            - label: 年
+              value: year
+    note:
+      name: 规格备忘
+      description: 耗材型号、规格参数或备忘说明。
+      required: false
+      example: 400G大通量专用滤芯
+      selector:
+        text:
+
+update_item:
+  name: 更新耗材信息
+  description: 修改已存在的耗材或事务参数。
+  fields:
+    id:
+      name: 耗材ID
+      description: 耗材唯一标识。
+      required: true
+      selector:
+        text:
+    name:
+      name: 耗材名称
+      description: 耗材名称。
+      required: false
+      selector:
+        text:
+    category:
+      name: 分类
+      selector:
+        text:
+    icon:
+      name: 图标
+      selector:
+        icon:
+    duration_value:
+      name: 周期数值
+      selector:
+        number:
+          min: 1
+          max: 120
+    note:
+      name: 规格备忘
+      selector:
+        text:
+
+delete_item:
+  name: 删除耗材
+  description: 永久删除指定的耗材或事务记录。
+  fields:
+    item_id:
+      name: 耗材ID
+      description: 要删除的耗材ID。
+      required: true
+      selector:
+        text:
+
+reset_item:
+  name: 更换/重置耗材
+  description: 标记耗材已更换，将上一周期自动归档至历史记录，并以当前日期开启全新周期。
+  fields:
+    item_id:
+      name: 耗材ID
+      description: 要重置的耗材ID。
+      required: true
+      selector:
+        text:
+    new_start_date:
+      name: 新周期开始日期
+      description: 可选，留空默认为今天。
+      required: false
+      selector:
+        text:
+    note:
+      name: 本次更换备注
+      description: 可选，记录更换品牌或备忘。
+      required: false
+      selector:
+        text:
+
+trigger_check:
+  name: 手动触发到期巡检
+  description: 立即触发耗材到期检查并发送企业微信提醒。
+
+send_summary:
+  name: 发送耗材汇总报告
+  description: 立即向企业微信发送全量耗材使用状况季度汇总报告。
+  fields:
+    force:
+      name: 强制发送
+      description: 是否忽略月份间隔限制立即发送。
+      required: false
+      default: true
+      selector:
+        boolean:

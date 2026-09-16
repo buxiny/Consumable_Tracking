@@ -1,0 +1,29 @@
+{
+  "title": "耗材与事务跟踪 (Consumable Tracking)",
+  "services": {
+    "add_item": {
+      "name": "添加耗材",
+      "description": "添加一个新的耗材或维护跟踪项"
+    },
+    "update_item": {
+      "name": "更新耗材",
+      "description": "修改已存在的耗材属性"
+    },
+    "delete_item": {
+      "name": "删除耗材",
+      "description": "删除指定的耗材记录"
+    },
+    "reset_item": {
+      "name": "更换完成/重置",
+      "description": "将当前周期归档至历史记录并开启新周期"
+    },
+    "trigger_check": {
+      "name": "触发到期巡检",
+      "description": "立即巡检即将到期的耗材并推送企业微信"
+    },
+    "send_summary": {
+      "name": "发送汇总报告",
+      "description": "向企业微信推送全量耗材总览报告"
+    }
+  }
+}
