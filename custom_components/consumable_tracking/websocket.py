@@ -4,6 +4,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+import voluptuous as vol
+
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant
 
@@ -77,8 +79,8 @@ def async_register_websocket_api(hass: HomeAssistant, storage: ConsumableStorage
     @websocket_api.websocket_command({
         "type": WS_TYPE_RESET_ITEM,
         "item_id": str,
-        websocket_api.vol.Optional("new_start_date"): str,
-        websocket_api.vol.Optional("note"): str,
+        vol.Optional("new_start_date"): str,
+        vol.Optional("note"): str,
     })
     @websocket_api.async_response
     async def ws_reset_item(
@@ -111,7 +113,7 @@ def async_register_websocket_api(hass: HomeAssistant, storage: ConsumableStorage
         connection.send_result(
             msg["id"],
             {
-                "version": "1.0.2",
+                "version": "1.0.3",
                 "notify_service": cfg.get("notify_service"),
                 "due_notification": cfg.get("due_notification"),
                 "periodic_summary": cfg.get("periodic_summary"),
