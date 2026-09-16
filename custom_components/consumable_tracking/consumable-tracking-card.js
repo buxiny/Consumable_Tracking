@@ -1163,10 +1163,14 @@ if (!customElements.get('consumable-tracking-card')) {
   customElements.define('consumable-tracking-card', ConsumableTrackingCard);
 }
 
-window.customCards = window.customCards || [];
-window.customCards.push({
-  type: 'consumable-tracking-card',
-  name: '耗材与事务跟踪卡片 (Consumable Tracking Card)',
-  description: '家庭滤芯、电池、疏浚管道等各类耗材与周期的现代紧凑进度条跟踪卡片',
-  preview: true
-});
+if (!window.customCards) {
+  window.customCards = [];
+}
+if (!window.customCards.some(c => c.type === 'consumable-tracking-card')) {
+  window.customCards.push({
+    type: 'consumable-tracking-card',
+    name: '耗材与事务跟踪卡片 (Consumable Tracking Card)',
+    description: '家庭滤芯、电池、疏浚管道等各类耗材与周期的现代紧凑进度条跟踪卡片',
+    preview: true
+  });
+}

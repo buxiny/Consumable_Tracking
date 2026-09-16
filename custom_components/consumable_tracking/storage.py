@@ -229,9 +229,8 @@ class ConsumableStorage:
                     self._items[item_id]["order"] = idx
                     changed = True
         if changed:
-            await self._async_save()
+            await self.async_save()
         return self.get_items()
-        return False
 
     async def async_reset_item(
         self,
