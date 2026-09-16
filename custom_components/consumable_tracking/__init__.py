@@ -11,6 +11,7 @@ import voluptuous as vol
 from homeassistant.components.frontend import async_register_built_in_panel
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import CoreState, HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.discovery import async_load_platform
@@ -55,7 +56,7 @@ CONFIG_SCHEMA = vol.Schema(
         DOMAIN: vol.Schema(
             {
                 vol.Optional(CONF_NOTIFY_SERVICE, default=DEFAULT_NOTIFY_SERVICE): cv.string,
-                vol.Optional(CONF_CHECK_TIME, default=DEFAULT_CHECK_TIME): cv.time_period_str,
+                vol.Optional(CONF_CHECK_TIME, default=DEFAULT_CHECK_TIME): cv.string,
                 vol.Optional(CONF_DUE_NOTIFICATION, default={}): vol.Schema(
                     {
                         vol.Optional(CONF_ENABLED, default=True): cv.boolean,
@@ -69,7 +70,7 @@ CONFIG_SCHEMA = vol.Schema(
                         vol.Optional(CONF_ENABLED, default=True): cv.boolean,
                         vol.Optional(CONF_INTERVAL_MONTHS, default=DEFAULT_INTERVAL_MONTHS): cv.positive_int,
                         vol.Optional(CONF_NOTIFY_DAY, default=DEFAULT_NOTIFY_DAY): cv.positive_int,
-                        vol.Optional(CONF_NOTIFY_TIME, default=DEFAULT_NOTIFY_TIME): cv.time_period_str,
+                        vol.Optional(CONF_NOTIFY_TIME, default=DEFAULT_NOTIFY_TIME): cv.string,
                     }
                 ),
             }
@@ -217,3 +218,16 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
 
     _LOGGER.info("consumable_tracking (耗材与事务跟踪) 插件初始化成功")
     return True
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """通过 UI 添加集成条目时的初始化。"""
+    if DOMAIN not in hass.data:
+        await async_setup(hass, {})
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    return True
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """卸载 UI 集成条目。"""
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    return unload_ok
