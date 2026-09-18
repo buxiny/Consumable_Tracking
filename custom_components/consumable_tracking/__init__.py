@@ -101,9 +101,10 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     # 3. 注册静态资源路径 (前端卡片)
     card_path = os.path.join(os.path.dirname(__file__), CARD_FILENAME)
     try:
-        card_version = str(int(os.path.getmtime(card_path)))
+        card_mtime = str(int(os.path.getmtime(card_path)))
     except Exception:
-        card_version = "1.1.0"
+        card_mtime = "0"
+    card_version = f"1.1.2_{card_mtime}"
     current_card_url = f"{CARD_URL}?v={card_version}"
 
     if hasattr(hass.http, "async_register_static_paths"):
@@ -130,10 +131,10 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
                 if not getattr(resources, "loaded", True) and hasattr(resources, "async_load"):
                     await resources.async_load()
                 
-                # 检查是否已存在
+                # 检查是否已存在任何旧卡片资源（无论是否带旧参数）
                 existing = [
                     r for r in resources.async_items()
-                    if r.get("url", "").split("?")[0] == CARD_URL
+                    if CARD_FILENAME in r.get("url", "")
                 ]
                 if not existing:
                     _LOGGER.info("正在自动向 Lovelace 添加 consumable-tracking-card 资源: %s", current_card_url)
@@ -142,14 +143,14 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
                         "url": current_card_url,
                     })
                 else:
-                    # 如果已存在旧版本（如 ?v=1.0.1），强行将其更新为最新版本时间戳！
+                    # 发现任何不等于最新动态版本的资源，直接强制更新！彻底击穿缓存死角
                     for r in existing:
                         if r.get("url") != current_card_url:
                             await resources.async_update_item(r["id"], {
                                 "res_type": "module",
                                 "url": current_card_url,
                             })
-                            _LOGGER.info("已将 Lovelace 资源 %s 更新为最新版本: %s", r.get("id"), current_card_url)
+                            _LOGGER.info("已将 Lovelace 资源 %s 强制升级至最新版本: %s", r.get("id"), current_card_url)
         except Exception as err:
             _LOGGER.debug("自动向 Lovelace 注册资源跳过: %s", err)
 

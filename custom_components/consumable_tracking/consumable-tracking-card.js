@@ -1,4 +1,14 @@
 /**
+ * Home Assistant - Consumable Tracking Card (耗材与事务跟踪卡片)
+ * Version: 1.1.2 [Theme-A: Tech Blue]
+ */
+console.info(
+  '%c CONSUMABLE-TRACKING-CARD %c v1.1.2 [科技蔚蓝] %c',
+  'background:#0284c7;color:#fff;padding:3px 6px;border-radius:3px 0 0 3px;font-weight:bold;font-size:11px;',
+  'background:#38bdf8;color:#0f172a;padding:3px 6px;border-radius:0 3px 3px 0;font-weight:bold;font-size:11px;',
+  'background:transparent;'
+);
+/**
  * Consumable Tracking Card (耗材与事务跟踪卡片)
  * 紧凑、现代、简约风格，原生支持 Home Assistant
  */
@@ -497,13 +507,27 @@ class ConsumableTrackingCard extends HTMLElement {
           border-radius: 14px;
         }
         .progress-fill-bar.status-good {
-          background: linear-gradient(90deg, #0284c7 0%, #38bdf8 100%);
+          background: linear-gradient(90deg, #0284c7 0%, #38bdf8 100%) !important;
         }
         .progress-fill-bar.status-warning {
-          background: linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%);
+          background: linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%) !important;
         }
         .progress-fill-bar.status-expired {
-          background: linear-gradient(90deg, #e11d48 0%, #fb7185 100%);
+          background: linear-gradient(90deg, #e11d48 0%, #fb7185 100%) !important;
+        }
+
+        .version-badge {
+          font-size: 11px;
+          font-weight: 500;
+          color: #64748b;
+          background: #f1f5f9;
+          border: 1px solid #e2e8f0;
+          padding: 1px 6px;
+          border-radius: 4px;
+          margin-left: 6px;
+          vertical-align: middle;
+          letter-spacing: 0.2px;
+          display: inline-block;
         }
 
         .progress-inner-text {
@@ -658,9 +682,10 @@ class ConsumableTrackingCard extends HTMLElement {
       <ha-card>
         <!-- Header -->
         <div class="header">
-          <div class="header-left">
+          <div class="header-left" style="display:flex; align-items:center; gap:6px;">
             <h2 class="card-title">${this._config.title}</h2>
             <span class="item-count-badge">${displayItems.length}项</span>
+            <span class="version-badge" title="卡片版本 (构建: v1.1.2)">v1.1.2</span>
           </div>
           <div class="header-actions-group">
             <button class="btn-notify-test" id="testNotifyBtn" title="发送全量耗材总览通知到企业微信 (测试)">
