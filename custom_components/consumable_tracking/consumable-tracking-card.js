@@ -396,9 +396,9 @@ class ConsumableTrackingCard extends HTMLElement {
           flex-shrink: 0;
         }
         .btn-history {
-          background: #ffffff;
-          border: 1px solid #d1d5db;
-          color: #374151;
+          background: #f8fafc;
+          border: 1px solid #cbd5e1;
+          color: #475569;
           font-size: 12px;
           font-weight: 500;
           padding: 4px 10px;
@@ -408,15 +408,16 @@ class ConsumableTrackingCard extends HTMLElement {
           line-height: 1.2;
         }
         .btn-history:hover {
-          background: #f9fafb;
-          border-color: #9ca3af;
+          background: #f1f5f9;
+          border-color: #94a3b8;
+          color: #1e293b;
         }
         .btn-replace {
-          background: #f3f4f6;
-          border: 1px solid #e5e7eb;
-          color: #1f2937;
+          background: #0284c7;
+          border: 1px solid #0284c7;
+          color: #ffffff;
           font-size: 12px;
-          font-weight: 500;
+          font-weight: 600;
           padding: 4px 10px;
           border-radius: 6px;
           cursor: pointer;
@@ -425,9 +426,11 @@ class ConsumableTrackingCard extends HTMLElement {
           gap: 4px;
           transition: all 0.15s;
           line-height: 1.2;
+          box-shadow: 0 1px 2px rgba(2, 132, 199, 0.2);
         }
         .btn-replace:hover {
-          background: #e5e7eb;
+          background: #0369a1;
+          border-color: #0369a1;
         }
         .btn-replace svg {
           display: block;
@@ -458,7 +461,7 @@ class ConsumableTrackingCard extends HTMLElement {
           --mdc-icon-size: 18px;
         }
 
-        /* 进度条与浮动文字（对齐附图） */
+        /* 进度条与浮动文字（方案 A 科技蔚蓝） */
         .progress-section {
           margin-top: 4px;
         }
@@ -466,7 +469,8 @@ class ConsumableTrackingCard extends HTMLElement {
           position: relative;
           width: 100%;
           height: 28px;
-          background: #eef2f6;
+          background: #f1f5f9;
+          border: 1px solid #e2e8f0;
           border-radius: 14px;
           overflow: hidden;
           display: flex;
@@ -493,13 +497,13 @@ class ConsumableTrackingCard extends HTMLElement {
           border-radius: 14px;
         }
         .progress-fill-bar.status-good {
-          background: linear-gradient(90deg, #00b050 0%, #22c55e 25%, #84cc16 50%, #eab308 72%, #f59e0b 88%, #ea580c 100%);
+          background: linear-gradient(90deg, #0284c7 0%, #38bdf8 100%);
         }
         .progress-fill-bar.status-warning {
-          background: linear-gradient(90deg, #84cc16 0%, #eab308 30%, #f59e0b 60%, #ef4444 100%);
+          background: linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%);
         }
         .progress-fill-bar.status-expired {
-          background: #ef4444;
+          background: linear-gradient(90deg, #e11d48 0%, #fb7185 100%);
         }
 
         .progress-inner-text {
@@ -511,29 +515,33 @@ class ConsumableTrackingCard extends HTMLElement {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 0 14px;
-          font-size: 13px;
-          color: #111827;
+          padding: 0 8px;
           pointer-events: none;
           z-index: 2;
-          font-weight: 600;
           white-space: nowrap;
-          letter-spacing: 0.2px;
         }
         .progress-inner-text .text-start,
         .progress-inner-text .text-end {
-          font-size: 12.5px;
+          font-size: 11.5px;
           font-weight: 600;
-          color: #1f2937;
+          color: #475569;
+          background: rgba(255, 255, 255, 0.85);
+          backdrop-filter: blur(4px);
+          padding: 2px 7px;
+          border-radius: 999px;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+          border: 1px solid rgba(226, 232, 240, 0.6);
         }
         .progress-inner-text .text-center {
-          font-size: 13.5px;
+          font-size: 13px;
           font-weight: 700;
-          color: #111827;
+          color: #0f172a;
+          letter-spacing: 0.2px;
+          text-shadow: 0 0 4px rgba(255, 255, 255, 0.85);
         }
         .progress-inner-text .text-center.expired {
           color: #ffffff;
-          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+          text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
         }
 
         /* 空状态 */
