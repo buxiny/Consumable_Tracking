@@ -700,6 +700,13 @@ class ConsumableTrackingCard extends HTMLElement {
     this._bindEvents();
   }
 
+  _resolveIcon(icon) {
+    if (!icon || icon === 'mdi:water-filter') {
+      return 'mdi:filter';
+    }
+    return icon;
+  }
+
   _formatYM(dateStr) {
     if (!dateStr) return '-';
     return String(dateStr).slice(0, 7).replace(/-/g, '/');
@@ -733,7 +740,7 @@ class ConsumableTrackingCard extends HTMLElement {
               </svg>
             </div>
             <div class="item-icon">
-              <ha-icon icon="${item.icon || 'mdi:air-filter'}"></ha-icon>
+              <ha-icon icon="${this._resolveIcon(item.icon)}"></ha-icon>
             </div>
             <div class="item-title-group">
               <span class="item-name">${item.name}</span>
@@ -784,7 +791,7 @@ class ConsumableTrackingCard extends HTMLElement {
     const item = this._editItem || {
       name: '',
       category: '滤芯',
-      icon: 'mdi:water-filter',
+      icon: 'mdi:filter',
       start_date: this._getTodayYM(),
       duration_value: 12,
       duration_unit: 'month',
@@ -822,7 +829,7 @@ class ConsumableTrackingCard extends HTMLElement {
             </div>
             <div class="form-group">
               <label class="form-label">MDI 图标</label>
-              <input type="text" class="form-input" id="inp_icon" value="${item.icon || 'mdi:package-variant'}" placeholder="mdi:water-filter">
+              <input type="text" class="form-input" id="inp_icon" value="${item.icon || 'mdi:package-variant'}" placeholder="mdi:filter">
             </div>
           </div>
 
@@ -1100,7 +1107,7 @@ class ConsumableTrackingCard extends HTMLElement {
         if (tpl === 'water_filter') {
           if (nameInp) nameInp.value = '净水器RO滤芯';
           if (catInp) catInp.value = '滤芯';
-          if (iconInp) iconInp.value = 'mdi:water-filter';
+          if (iconInp) iconInp.value = 'mdi:filter';
           if (durInp) durInp.value = 12;
           if (unitInp) unitInp.value = 'month';
         } else if (tpl === 'air_filter') {

@@ -100,6 +100,12 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
 
     # 3. 注册静态资源路径 (前端卡片)
     card_path = os.path.join(os.path.dirname(__file__), CARD_FILENAME)
+    try:
+        card_version = str(int(os.path.getmtime(card_path)))
+    except Exception:
+        card_version = "1.1.0"
+    current_card_url = f"{CARD_URL}?v={card_version}"
+
     if hasattr(hass.http, "async_register_static_paths"):
         await hass.http.async_register_static_paths(
             [StaticPathConfig(CARD_URL, card_path, cache_headers=False)]
@@ -110,12 +116,12 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     # 4. 自动注入前端 extra_js_url 与 Lovelace 资源 (免用户手动添加 Resources)
     try:
         from homeassistant.components.frontend import add_extra_js_url
-        add_extra_js_url(hass, f"{CARD_URL}?v=1.0.1")
-        _LOGGER.debug("已通过 add_extra_js_url 自动注入前端卡片")
+        add_extra_js_url(hass, current_card_url)
+        _LOGGER.debug("已通过 add_extra_js_url 自动注入前端卡片: %s", current_card_url)
     except Exception as ex:
         _LOGGER.debug("add_extra_js_url 注入失败或不可用: %s", ex)
 
-    # 同时尝试自动注册至 Lovelace storage resources (兼容 Cast 及原生加载)
+    # 同时尝试自动注册至 Lovelace storage resources (兼容 Cast 及原生加载，自动破除旧缓存)
     async def _async_register_lovelace_resource(_event=None) -> None:
         try:
             lovelace = hass.data.get("lovelace")
@@ -130,13 +136,20 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
                     if r.get("url", "").split("?")[0] == CARD_URL
                 ]
                 if not existing:
-                    _LOGGER.info("正在自动向 Lovelace 添加 consumable-tracking-card 资源")
+                    _LOGGER.info("正在自动向 Lovelace 添加 consumable-tracking-card 资源: %s", current_card_url)
                     await resources.async_create_item({
                         "res_type": "module",
-                        "url": f"{CARD_URL}?v=1.0.1",
+                        "url": current_card_url,
                     })
                 else:
-                    _LOGGER.debug("Lovelace 资源中已存在 consumable-tracking-card")
+                    # 如果已存在旧版本（如 ?v=1.0.1），强行将其更新为最新版本时间戳！
+                    for r in existing:
+                        if r.get("url") != current_card_url:
+                            await resources.async_update_item(r["id"], {
+                                "res_type": "module",
+                                "url": current_card_url,
+                            })
+                            _LOGGER.info("已将 Lovelace 资源 %s 更新为最新版本: %s", r.get("id"), current_card_url)
         except Exception as err:
             _LOGGER.debug("自动向 Lovelace 注册资源跳过: %s", err)
 
