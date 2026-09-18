@@ -465,28 +465,40 @@ class ConsumableTrackingCard extends HTMLElement {
         .progress-track-wrapper {
           position: relative;
           width: 100%;
-          height: 24px;
+          height: 28px;
           background: #eef2f6;
-          border-radius: 12px;
+          border-radius: 14px;
           overflow: hidden;
           display: flex;
           align-items: center;
+          container-type: inline-size;
         }
-        .progress-fill {
+        .progress-fill-mask {
           position: absolute;
           left: 0;
           top: 0;
           bottom: 0;
-          border-radius: 12px;
-          transition: width 0.3s ease;
+          border-radius: 14px;
+          overflow: hidden;
+          transition: width 0.35s ease;
+          pointer-events: none;
         }
-        .progress-fill.status-good {
-          background: linear-gradient(90deg, #00b050 0%, #10b981 40%, #fbbf24 100%);
+        .progress-fill-bar {
+          position: absolute;
+          left: 0;
+          top: 0;
+          bottom: 0;
+          width: 100cqi;
+          min-width: 100%;
+          border-radius: 14px;
         }
-        .progress-fill.status-warning {
-          background: linear-gradient(90deg, #f59e0b 0%, #ef4444 100%);
+        .progress-fill-bar.status-good {
+          background: linear-gradient(90deg, #00b050 0%, #22c55e 25%, #84cc16 50%, #eab308 72%, #f59e0b 88%, #ea580c 100%);
         }
-        .progress-fill.status-expired {
+        .progress-fill-bar.status-warning {
+          background: linear-gradient(90deg, #84cc16 0%, #eab308 30%, #f59e0b 60%, #ef4444 100%);
+        }
+        .progress-fill-bar.status-expired {
           background: #ef4444;
         }
 
@@ -499,19 +511,29 @@ class ConsumableTrackingCard extends HTMLElement {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 0 12px;
-          font-size: 11px;
+          padding: 0 14px;
+          font-size: 13px;
           color: #111827;
           pointer-events: none;
-          z-index: 1;
-          font-weight: 500;
+          z-index: 2;
+          font-weight: 600;
           white-space: nowrap;
+          letter-spacing: 0.2px;
+        }
+        .progress-inner-text .text-start,
+        .progress-inner-text .text-end {
+          font-size: 12.5px;
+          font-weight: 600;
+          color: #1f2937;
         }
         .progress-inner-text .text-center {
-          font-weight: 600;
+          font-size: 13.5px;
+          font-weight: 700;
+          color: #111827;
         }
         .progress-inner-text .text-center.expired {
-          color: #b91c1c;
+          color: #ffffff;
+          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
         }
 
         /* 空状态 */
@@ -743,7 +765,9 @@ class ConsumableTrackingCard extends HTMLElement {
         <!-- 底部紧凑横向胶囊进度条（对齐附图） -->
         <div class="progress-section">
           <div class="progress-track-wrapper">
-            <div class="progress-fill ${statusClass}" style="width: ${Math.min(Math.max(item.progress, 0), 100)}%;"></div>
+            <div class="progress-fill-mask" style="width: ${Math.min(Math.max(item.progress, 0), 100)}%;">
+              <div class="progress-fill-bar ${statusClass}"></div>
+            </div>
             <div class="progress-inner-text">
               <span class="text-start">${this._formatYM(item.start_ym || item.start_date)}</span>
               <span class="text-center ${item.status === 'expired' ? 'expired' : ''}">${this._getCenterProgressText(item)}</span>
