@@ -471,16 +471,15 @@ class ConsumableTrackingCard extends HTMLElement {
           --mdc-icon-size: 18px;
         }
 
-        /* 进度条与浮动文字（方案 A 科技蔚蓝） */
+        /* 进度条与浮动文字（方案 A 科技蔚蓝纯白字·透明底） */
         .progress-section {
-          margin-top: 4px;
+          margin-top: 6px;
         }
         .progress-track-wrapper {
           position: relative;
           width: 100%;
           height: 28px;
-          background: #f1f5f9;
-          border: 1px solid #e2e8f0;
+          background: #cbd5e1;
           border-radius: 14px;
           overflow: hidden;
           display: flex;
@@ -516,20 +515,6 @@ class ConsumableTrackingCard extends HTMLElement {
           background: linear-gradient(90deg, #e11d48 0%, #fb7185 100%) !important;
         }
 
-        .version-badge {
-          font-size: 11px;
-          font-weight: 500;
-          color: #64748b;
-          background: #f1f5f9;
-          border: 1px solid #e2e8f0;
-          padding: 1px 6px;
-          border-radius: 4px;
-          margin-left: 6px;
-          vertical-align: middle;
-          letter-spacing: 0.2px;
-          display: inline-block;
-        }
-
         .progress-inner-text {
           position: absolute;
           left: 0;
@@ -539,33 +524,33 @@ class ConsumableTrackingCard extends HTMLElement {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 0 8px;
+          padding: 0 12px;
           pointer-events: none;
           z-index: 2;
           white-space: nowrap;
+          color: #ffffff !important;
         }
         .progress-inner-text .text-start,
         .progress-inner-text .text-end {
-          font-size: 11.5px;
+          font-size: 12px;
           font-weight: 600;
-          color: #475569;
-          background: rgba(255, 255, 255, 0.85);
-          backdrop-filter: blur(4px);
-          padding: 2px 7px;
-          border-radius: 999px;
-          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-          border: 1px solid rgba(226, 232, 240, 0.6);
+          color: #ffffff !important;
+          background: transparent !important;
+          border: none !important;
+          box-shadow: none !important;
+          padding: 0 !important;
+          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5) !important;
         }
         .progress-inner-text .text-center {
           font-size: 13px;
           font-weight: 700;
-          color: #0f172a;
+          color: #ffffff !important;
           letter-spacing: 0.2px;
-          text-shadow: 0 0 4px rgba(255, 255, 255, 0.85);
+          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5) !important;
         }
         .progress-inner-text .text-center.expired {
-          color: #ffffff;
-          text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+          color: #ffffff !important;
+          text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6) !important;
         }
 
         /* 空状态 */
@@ -682,10 +667,8 @@ class ConsumableTrackingCard extends HTMLElement {
       <ha-card>
         <!-- Header -->
         <div class="header">
-          <div class="header-left" style="display:flex; align-items:center; gap:6px;">
-            <h2 class="card-title">${this._config.title}</h2>
-            <span class="item-count-badge">${displayItems.length}项</span>
-            <span class="version-badge" title="卡片版本 (构建: v1.1.2)">v1.1.2</span>
+          <div class="header-left">
+            <h2 class="card-title">${this._config.title === '家庭耗材与事务跟踪' ? '耗材与事务跟踪' : (this._config.title || '耗材与事务跟踪')}</h2>
           </div>
           <div class="header-actions-group">
             <button class="btn-notify-test" id="testNotifyBtn" title="发送全量耗材总览通知到企业微信 (测试)">
@@ -693,8 +676,7 @@ class ConsumableTrackingCard extends HTMLElement {
             </button>
             ${this._config.show_add ? `
               <button class="btn-add" id="openAddBtn">
-                <ha-icon icon="mdi:plus"></ha-icon>
-                新建耗材
+                + 新建
               </button>
             ` : ''}
           </div>
@@ -772,27 +754,14 @@ class ConsumableTrackingCard extends HTMLElement {
                 <circle cx="16" cy="19" r="1.8"/>
               </svg>
             </div>
-            <div class="item-icon">
-              <ha-icon icon="${this._resolveIcon(item.icon)}"></ha-icon>
-            </div>
             <div class="item-title-group">
-              <span class="item-name">${item.name}</span>
-              <div class="item-badge-row">
-                <span class="category-tag">${item.category || '通用'}</span>
-                ${item.note ? `<span class="note-tag" title="${item.note}">${item.note}</span>` : ''}
-              </div>
+              <span class="item-name" title="${item.name}">${item.name}</span>
             </div>
           </div>
 
           <div class="item-actions">
             <button type="button" class="btn-history" data-action="history" data-id="${item.id}" title="查看更换历史">历史</button>
-            <button type="button" class="btn-replace" data-action="reset" data-id="${item.id}" title="完成并记录更换">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                <path d="M3 3v5h5"/>
-              </svg>
-              <span>已更换</span>
-            </button>
+            <button type="button" class="btn-replace" data-action="reset" data-id="${item.id}" title="完成并记录更换">已更换</button>
             <button type="button" class="btn-icon" data-action="edit" data-id="${item.id}" title="编辑">
               <ha-icon icon="mdi:pencil-outline"></ha-icon>
             </button>

@@ -148,7 +148,7 @@ def async_register_websocket_api(
         connection.send_result(
             msg["id"],
             {
-                "version": "1.1.2",
+                "version": "1.1.3",
                 "notify_service": cfg.get("notify_service"),
                 "due_notification": cfg.get("due_notification"),
                 "periodic_summary": cfg.get("periodic_summary"),
