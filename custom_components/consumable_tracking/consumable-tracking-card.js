@@ -13,6 +13,8 @@ class ConsumableTrackingCard extends HTMLElement {
     this._editItem = null;
     this._showResetModal = false;
     this._resetTargetItem = null;
+    this._showHistoryModal = false;
+    this._historyTargetItem = null;
   }
 
   set hass(hass) {
@@ -287,199 +289,229 @@ class ConsumableTrackingCard extends HTMLElement {
         .item-list {
           display: flex;
           flex-direction: column;
-          gap: 10px;
+          gap: 12px;
         }
 
         .item-card {
-          background: var(--ct-card-bg);
-          border: 1px solid var(--ct-border-color);
-          border-radius: 8px;
-          padding: 10px 12px;
+          background: var(--ct-card-bg, #ffffff);
+          border: 1px solid var(--ct-border-color, #e5e7eb);
+          border-radius: 12px;
+          padding: 12px 14px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.03);
           transition: transform 0.15s, box-shadow 0.15s;
         }
         .item-card:hover {
-          box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+          box-shadow: 0 3px 10px rgba(0,0,0,0.07);
         }
 
+        /* 顶部信息与操作行（对齐附图） */
         .item-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 6px;
+          margin-bottom: 10px;
+          gap: 8px;
         }
         .item-info {
           display: flex;
           align-items: center;
-          gap: 8px;
+          gap: 10px;
           min-width: 0;
+          flex: 1;
         }
-        .item-icon {
-          width: 28px;
-          height: 28px;
-          border-radius: 6px;
-          background: var(--ct-track-bg);
+        .drag-handle {
+          cursor: grab;
+          color: #9ca3af;
           display: flex;
           align-items: center;
           justify-content: center;
+          padding: 2px;
+          border-radius: 4px;
+          transition: color 0.2s, background 0.2s;
+        }
+        .drag-handle:hover {
           color: var(--primary-color, #0284c7);
+          background: rgba(0,0,0,0.04);
+        }
+        .drag-handle svg {
+          display: block;
+        }
+        .item-icon {
+          width: 36px;
+          height: 36px;
+          border-radius: 8px;
+          background: #f1f5f9;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #0284c7;
           flex-shrink: 0;
         }
         .item-icon ha-icon {
-          --mdc-icon-size: 18px;
+          --mdc-icon-size: 20px;
         }
         .item-title-group {
           display: flex;
           flex-direction: column;
+          gap: 3px;
           min-width: 0;
         }
         .item-name {
-          font-size: 14px;
+          font-size: 15px;
           font-weight: 600;
-          color: var(--ct-text-primary);
+          color: var(--ct-text-primary, #111827);
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
+          line-height: 1.25;
         }
         .item-badge-row {
           display: flex;
-          gap: 4px;
+          gap: 6px;
           align-items: center;
         }
         .category-tag {
-          font-size: 10px;
-          color: var(--ct-text-secondary);
-          background: var(--ct-track-bg);
-          padding: 1px 5px;
-          border-radius: 4px;
+          font-size: 11px;
+          color: #64748b;
+          background: #f1f5f9;
+          padding: 1px 8px;
+          border-radius: 10px;
+          line-height: 1.3;
+          width: fit-content;
         }
         .note-tag {
-          font-size: 10px;
-          color: var(--ct-text-secondary);
-          max-width: 140px;
+          font-size: 11px;
+          color: #94a3b8;
+          max-width: 130px;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
         }
 
+        /* 顶部右侧操作栏（附图样式） */
         .item-actions {
           display: flex;
           align-items: center;
           gap: 6px;
           flex-shrink: 0;
         }
-        .btn-action {
-          background: transparent;
-          border: 1px solid var(--ct-border-color);
-          color: var(--ct-text-secondary);
-          border-radius: 4px;
-          padding: 3px 8px;
-          font-size: 11px;
+        .btn-history {
+          background: #ffffff;
+          border: 1px solid #d1d5db;
+          color: #374151;
+          font-size: 12px;
+          font-weight: 500;
+          padding: 4px 10px;
+          border-radius: 6px;
+          cursor: pointer;
+          transition: all 0.15s;
+          line-height: 1.2;
+        }
+        .btn-history:hover {
+          background: #f9fafb;
+          border-color: #9ca3af;
+        }
+        .btn-replace {
+          background: #f3f4f6;
+          border: 1px solid #e5e7eb;
+          color: #1f2937;
+          font-size: 12px;
+          font-weight: 500;
+          padding: 4px 10px;
+          border-radius: 6px;
           cursor: pointer;
           display: inline-flex;
           align-items: center;
-          gap: 3px;
-          transition: all 0.2s;
+          gap: 4px;
+          transition: all 0.15s;
+          line-height: 1.2;
         }
-        .btn-action.btn-replace {
-          background: var(--ct-track-bg);
-          color: var(--ct-text-primary);
-          font-weight: 500;
+        .btn-replace:hover {
+          background: #e5e7eb;
         }
-        .btn-action:hover {
-          background: var(--ct-border-color);
+        .btn-replace svg {
+          display: block;
         }
         .btn-icon {
-          padding: 4px;
+          width: 28px;
+          height: 28px;
+          padding: 0;
           border: none;
           background: transparent;
+          border-radius: 6px;
           cursor: pointer;
-          color: var(--ct-text-secondary);
+          color: #6b7280;
           display: inline-flex;
           align-items: center;
+          justify-content: center;
+          transition: all 0.15s;
+        }
+        .btn-icon:hover {
+          background: #f3f4f6;
+          color: #1f2937;
+        }
+        .btn-icon.btn-delete:hover {
+          color: #ef4444;
+          background: #fee2e2;
         }
         .btn-icon ha-icon {
-          --mdc-icon-size: 16px;
+          --mdc-icon-size: 18px;
         }
 
-        /* 进度条与时间展示 */
+        /* 进度条与浮动文字（对齐附图） */
         .progress-section {
-          margin: 6px 0 4px 0;
+          margin-top: 4px;
         }
-        .date-labels {
-          display: flex;
-          justify-content: space-between;
-          font-size: 11px;
-          color: var(--ct-text-secondary);
-          margin-bottom: 4px;
-        }
-        .progress-bar-container {
-          height: 7px;
-          background: var(--ct-track-bg);
-          border-radius: 4px;
-          overflow: hidden;
+        .progress-track-wrapper {
           position: relative;
-        }
-        .progress-bar {
-          height: 100%;
-          border-radius: 4px;
-          transition: width 0.3s ease;
-        }
-        .status-good {
-          background: var(--ct-accent-green);
-        }
-        .status-warning {
-          background: var(--ct-accent-amber);
-        }
-        .status-expired {
-          background: var(--ct-accent-red);
-        }
-
-        .status-row {
-          display: flex;
-          justify-content: space-between;
-          font-size: 11px;
-          margin-top: 3px;
-          color: var(--ct-text-secondary);
-        }
-        .status-text {
-          font-weight: 500;
-        }
-        .status-text.expired {
-          color: var(--ct-accent-red);
-        }
-        .status-text.warning {
-          color: var(--ct-accent-amber);
-        }
-        .status-text.good {
-          color: var(--ct-accent-green);
-        }
-
-        /* 底部历史对比行：严格单行小字显示 */
-        .history-row {
-          border-top: 1px dashed var(--ct-border-color);
-          margin-top: 6px;
-          padding-top: 5px;
-          font-size: 11px;
-          color: var(--ct-text-secondary);
-          white-space: nowrap;
+          width: 100%;
+          height: 24px;
+          background: #eef2f6;
+          border-radius: 12px;
           overflow: hidden;
-          text-overflow: ellipsis;
           display: flex;
           align-items: center;
-          gap: 6px;
         }
-        .history-label {
-          flex-shrink: 0;
-          color: var(--ct-text-secondary);
-          opacity: 0.85;
+        .progress-fill {
+          position: absolute;
+          left: 0;
+          top: 0;
+          bottom: 0;
+          border-radius: 12px;
+          transition: width 0.3s ease;
         }
-        .history-items-inline {
-          overflow: hidden;
-          text-overflow: ellipsis;
+        .progress-fill.status-good {
+          background: linear-gradient(90deg, #00b050 0%, #10b981 40%, #fbbf24 100%);
+        }
+        .progress-fill.status-warning {
+          background: linear-gradient(90deg, #f59e0b 0%, #ef4444 100%);
+        }
+        .progress-fill.status-expired {
+          background: #ef4444;
+        }
+
+        .progress-inner-text {
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: 0;
+          bottom: 0;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 0 12px;
+          font-size: 11px;
+          color: #111827;
+          pointer-events: none;
+          z-index: 1;
+          font-weight: 500;
           white-space: nowrap;
         }
-        .history-item-span {
-          margin-right: 8px;
+        .progress-inner-text .text-center {
+          font-weight: 600;
+        }
+        .progress-inner-text .text-center.expired {
+          color: #b91c1c;
         }
 
         /* 空状态 */
@@ -637,45 +669,49 @@ class ConsumableTrackingCard extends HTMLElement {
 
         <!-- 弹窗：确认更换并归档 -->
         ${this._showResetModal ? this._renderResetModal() : ''}
+
+        <!-- 弹窗：查看更换历史 -->
+        ${this._showHistoryModal ? this._renderHistoryModal() : ''}
       </ha-card>
     `;
 
     this._bindEvents();
   }
 
+  _formatYM(dateStr) {
+    if (!dateStr) return '-';
+    return String(dateStr).slice(0, 7).replace(/-/g, '/');
+  }
+
+  _getCenterProgressText(item) {
+    if (item.remaining_days < 0) {
+      return `已超期 ${Math.abs(item.remaining_days)} 天(0%)`;
+    } else if (item.remaining_days === 0) {
+      return `今日到期(100%)`;
+    }
+    return `剩余 ${item.remaining_days} 天(${item.progress}%)`;
+  }
+
   _renderItemCard(item) {
     const statusClass = item.status === 'expired' ? 'status-expired' : (item.status === 'warning' ? 'status-warning' : 'status-good');
-    const statusTextClass = item.status === 'expired' ? 'expired' : (item.status === 'warning' ? 'warning' : 'good');
-    
-    let statusDesc = '';
-    if (item.remaining_days < 0) {
-      statusDesc = `已超期 ${Math.abs(item.remaining_days)} 天`;
-    } else if (item.remaining_days === 0) {
-      statusDesc = '今日到期';
-    } else {
-      statusDesc = `剩余 ${item.remaining_days} 天 (${item.progress}%)`;
-    }
-
-    // 历史记录处理：提取最新 2~3 条，单行显示
-    const historyList = (item.history || []).slice(0, 3);
-    const historyContent = historyList.length > 0
-      ? historyList.map((h, idx) => `
-          <span class="history-item-span">
-            ${idx + 1}. ${h.start_date}~${h.end_date} (${h.duration_desc})
-          </span>
-        `).join('')
-      : '暂无过往完成记录';
 
     return `
       <div class="item-card" data-id="${item.id}" draggable="true">
-        <!-- 顶部信息 -->
+        <!-- 顶部信息与操作行（对齐附图） -->
         <div class="item-header">
           <div class="item-info">
             <div class="drag-handle" title="按住拖拽排序">
-              <ha-icon icon="mdi:drag-vertical"></ha-icon>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="8" cy="5" r="1.8"/>
+                <circle cx="16" cy="5" r="1.8"/>
+                <circle cx="8" cy="12" r="1.8"/>
+                <circle cx="16" cy="12" r="1.8"/>
+                <circle cx="8" cy="19" r="1.8"/>
+                <circle cx="16" cy="19" r="1.8"/>
+              </svg>
             </div>
             <div class="item-icon">
-              <ha-icon icon="${item.icon || 'mdi:package-variant'}"></ha-icon>
+              <ha-icon icon="${item.icon || 'mdi:air-filter'}"></ha-icon>
             </div>
             <div class="item-title-group">
               <span class="item-name">${item.name}</span>
@@ -687,38 +723,32 @@ class ConsumableTrackingCard extends HTMLElement {
           </div>
 
           <div class="item-actions">
-            <button class="btn-action btn-replace" data-action="reset" data-id="${item.id}">
-              <ha-icon icon="mdi:restore"></ha-icon> 已更换
+            <button type="button" class="btn-history" data-action="history" data-id="${item.id}" title="查看更换历史">历史</button>
+            <button type="button" class="btn-replace" data-action="reset" data-id="${item.id}" title="完成并记录更换">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                <path d="M3 3v5h5"/>
+              </svg>
+              <span>已更换</span>
             </button>
-            <button class="btn-icon" data-action="edit" data-id="${item.id}" title="编辑">
+            <button type="button" class="btn-icon" data-action="edit" data-id="${item.id}" title="编辑">
               <ha-icon icon="mdi:pencil-outline"></ha-icon>
             </button>
-            <button class="btn-icon" data-action="delete" data-id="${item.id}" title="删除">
+            <button type="button" class="btn-icon btn-delete" data-action="delete" data-id="${item.id}" title="删除">
               <ha-icon icon="mdi:trash-can-outline"></ha-icon>
             </button>
           </div>
         </div>
 
-        <!-- 进度与年月 -->
+        <!-- 底部紧凑横向胶囊进度条（对齐附图） -->
         <div class="progress-section">
-          <div class="date-labels">
-            <span>起: ${item.start_ym || item.start_date?.slice(0, 7) || '-'}</span>
-            <span>预设止: ${item.expected_ym || item.expected_end_date?.slice(0, 7) || '-'}</span>
-          </div>
-          <div class="progress-bar-container">
-            <div class="progress-bar ${statusClass}" style="width: ${Math.min(item.progress, 100)}%;"></div>
-          </div>
-          <div class="status-row">
-            <span class="status-text ${statusTextClass}">${statusDesc}</span>
-            <span>周期: ${item.duration_value}${item.duration_unit === 'day' ? '天' : '个月'}</span>
-          </div>
-        </div>
-
-        <!-- 底部单行小字历史对比 -->
-        <div class="history-row">
-          <span class="history-label">历史:</span>
-          <div class="history-items-inline" title="${historyList.map((h, i) => `${i+1}. ${h.start_date}~${h.end_date} (${h.duration_desc})`).join('  ')}">
-            ${historyContent}
+          <div class="progress-track-wrapper">
+            <div class="progress-fill ${statusClass}" style="width: ${Math.min(Math.max(item.progress, 0), 100)}%;"></div>
+            <div class="progress-inner-text">
+              <span class="text-start">${this._formatYM(item.start_ym || item.start_date)}</span>
+              <span class="text-center ${item.status === 'expired' ? 'expired' : ''}">${this._getCenterProgressText(item)}</span>
+              <span class="text-end">${this._formatYM(item.expected_ym || item.expected_end_date)}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -830,6 +860,53 @@ class ConsumableTrackingCard extends HTMLElement {
           <div class="modal-actions">
             <button type="button" class="btn-cancel" id="resetCancelBtn">取消</button>
             <button type="button" class="btn-save" id="resetConfirmBtn">确认更换</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  _renderHistoryModal() {
+    const item = this._historyTargetItem;
+    if (!item) return '';
+
+    const historyList = item.history || [];
+
+    return `
+      <div class="modal-overlay" id="historyModalOverlay">
+        <div class="modal-box" style="max-width: 440px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--ct-border-color); padding-bottom: 10px;">
+            <div class="modal-title" style="margin-bottom: 0;">📜 ${item.name} · 更换历史</div>
+            <button type="button" class="btn-icon" id="closeHistoryIconBtn" title="关闭" style="color: var(--ct-text-secondary);">
+              <ha-icon icon="mdi:close"></ha-icon>
+            </button>
+          </div>
+
+          <div style="max-height: 320px; overflow-y: auto; margin-bottom: 16px; padding-right: 2px;">
+            ${historyList.length === 0 ? `
+              <div style="text-align: center; padding: 30px 12px; color: var(--ct-text-secondary); font-size: 13px;">
+                暂无过往更换记录。<br>耗材使用完毕并在卡片点击【已更换】后，每次使用周期将自动归档在此。
+              </div>
+            ` : `
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                ${historyList.map((h, idx) => `
+                  <div style="background: var(--ct-track-bg); border: 1px solid var(--ct-border-color); border-radius: 8px; padding: 8px 12px; font-size: 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-weight: 600; color: var(--ct-text-primary); margin-bottom: 3px;">
+                      <span>第 ${idx + 1} 次周期</span>
+                      <span style="color: var(--primary-color, #0284c7);">${h.duration_desc || ''}</span>
+                    </div>
+                    <div style="color: var(--ct-text-secondary); font-size: 11px;">
+                      时间: ${this._formatYM(h.start_date)} ~ ${this._formatYM(h.end_date)}
+                    </div>
+                    ${h.note ? `<div style="color: var(--ct-text-secondary); font-size: 11px; margin-top: 3px;">备注: ${h.note}</div>` : ''}
+                  </div>
+                `).join('')}
+              </div>
+            `}
+          </div>
+
+          <div class="modal-actions" style="justify-content: flex-end;">
+            <button type="button" class="btn-save" id="closeHistoryBtn">关闭</button>
           </div>
         </div>
       </div>
@@ -958,15 +1035,19 @@ class ConsumableTrackingCard extends HTMLElement {
       };
     });
 
-    // 卡片动作按钮（重置、编辑、删除）
-    root.querySelectorAll('.btn-action, .btn-icon').forEach(btn => {
+    // 卡片动作按钮（历史、重置、编辑、删除）
+    root.querySelectorAll('.btn-history, .btn-replace, .btn-icon').forEach(btn => {
       btn.onclick = (e) => {
         e.stopPropagation();
         const action = btn.dataset.action;
         const itemId = btn.dataset.id;
         const item = this._items.find(i => i.id === itemId);
 
-        if (action === 'reset' && item) {
+        if (action === 'history' && item) {
+          this._historyTargetItem = item;
+          this._showHistoryModal = true;
+          this._render();
+        } else if (action === 'reset' && item) {
           this._resetTargetItem = item;
           this._showResetModal = true;
           this._render();
@@ -1061,6 +1142,25 @@ class ConsumableTrackingCard extends HTMLElement {
         const startYM = root.querySelector('#reset_start_ym')?.value;
         const note = root.querySelector('#reset_note')?.value || '';
         this._resetItem(item.id, startYM, note);
+      };
+    }
+
+    // 历史弹窗关闭事件
+    const closeHistoryBtn = root.querySelector('#closeHistoryBtn');
+    const closeHistoryIconBtn = root.querySelector('#closeHistoryIconBtn');
+    const historyOverlay = root.querySelector('#historyModalOverlay');
+
+    const closeHistory = () => {
+      this._showHistoryModal = false;
+      this._historyTargetItem = null;
+      this._render();
+    };
+
+    if (closeHistoryBtn) closeHistoryBtn.onclick = closeHistory;
+    if (closeHistoryIconBtn) closeHistoryIconBtn.onclick = closeHistory;
+    if (historyOverlay) {
+      historyOverlay.onclick = (e) => {
+        if (e.target === historyOverlay) closeHistory();
       };
     }
   }
