@@ -106,7 +106,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         card_mtime = str(int(os.path.getmtime(card_path)))
     except Exception:
         card_mtime = "0"
-    card_version = f"1.1.4_{card_mtime}"
+    card_version = f"1.1.5_{card_mtime}"
     current_card_url = f"{CARD_URL}?v={card_version}"
 
     if hasattr(hass.http, "async_register_static_paths"):

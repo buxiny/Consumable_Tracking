@@ -1,9 +1,15 @@
-# Consumable Tracking (耗材与事务跟踪)
+<div align="center">
+  <img src="brand/icon.png" width="140" height="140" alt="Consumable Tracking Logo" />
+  <h1>耗材与事务跟踪 (Consumable & Task Tracking)</h1>
+  <p>适用于 Home Assistant 的现代高颜值家庭耗材与周期事务跟踪管理集成</p>
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/default)
 [![GitHub Release](https://img.shields.io/github/v/release/buxiny/Consumable_Tracking?color=blue)](https://github.com/buxiny/Consumable_Tracking/releases)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.8%2B-blue.svg)](https://www.home-assistant.io/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+</div>
+
+---
 
 适用于 **Home Assistant** 的现代、紧凑、简约家庭耗材与周期性事务跟踪集成插件。  
 用于实时跟踪净水器滤芯、新风滤网、扫地机配件、各种无线设备电池（门锁/传感器/无线开关）以及家庭定期维护（如定期疏浚下水道、空调清洗等）的使用进度，并通过企业微信进行到期与定期汇总提醒。
