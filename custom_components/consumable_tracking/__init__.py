@@ -10,7 +10,7 @@ import voluptuous as vol
 
 from homeassistant.components.frontend import async_register_built_in_panel
 from homeassistant.components.http import StaticPathConfig
-from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import CoreState, HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
@@ -50,6 +50,8 @@ from .storage import ConsumableStorage
 from .websocket import async_register_websocket_api
 
 _LOGGER = logging.getLogger(__name__)
+
+PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 # 配置校验 Schema
 CONFIG_SCHEMA = vol.Schema(
@@ -104,7 +106,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         card_mtime = str(int(os.path.getmtime(card_path)))
     except Exception:
         card_mtime = "0"
-    card_version = f"1.1.3_{card_mtime}"
+    card_version = f"1.1.4_{card_mtime}"
     current_card_url = f"{CARD_URL}?v={card_version}"
 
     if hasattr(hass.http, "async_register_static_paths"):

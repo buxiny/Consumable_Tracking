@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -21,6 +22,37 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """通过 UI 流程 (ConfigEntry) 设置传感器实体。"""
+    storage = hass.data[DOMAIN]["storage"]
+    items = await storage.async_get_items()
+
+    entities = [ConsumableSensorEntity(hass, item) for item in items]
+    async_add_entities(entities, update_before_add=True)
+
+    async def _async_handle_item_updated(event) -> None:
+        """当耗材项增删改时，动态更新或添加传感器实体。"""
+        current_items = await storage.async_get_items()
+        current_ids = {i["id"] for i in current_items}
+        existing_ids = {e._item_id for e in entities}
+        new_entities = []
+        for item in current_items:
+            if item["id"] not in existing_ids:
+                new_ent = ConsumableSensorEntity(hass, item)
+                entities.append(new_ent)
+                new_entities.append(new_ent)
+        if new_entities:
+            async_add_entities(new_entities, update_before_add=True)
+
+    entry.async_on_unload(
+        hass.bus.async_listen(f"{DOMAIN}_items_updated", _async_handle_item_updated)
+    )
 
 
 async def async_setup_platform(
