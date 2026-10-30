@@ -1313,7 +1313,7 @@ if (!window.customCards.some(c => c.type === 'consumable-tracking-card')) {
   });
 }
 
-// 3. 自愈机制：彻底解决偶发时序延迟导致的 "Custom element doesn't exist" 错误卡片
+// 3. 增强自愈机制：彻底解决偶发时序延迟导致的 "Custom element doesn't exist" 错误卡片
 function _healConsumableTrackingErrorCards() {
   const rebuildEvent = () => new CustomEvent('ll-rebuild', {
     bubbles: true,
@@ -1321,23 +1321,40 @@ function _healConsumableTrackingErrorCards() {
     composed: true,
   });
 
-  // 全局派发
+  // 1. 全局派发标准 rebuild 事件
   try {
     window.dispatchEvent(rebuildEvent());
     document.dispatchEvent(rebuildEvent());
   } catch (_) {}
 
-  // 深度扫描 Shadow DOM 唤醒受阻的错误卡片
+  // 2. 深度穿透扫描 Shadow DOM 唤醒受阻的卡片与直接调用 hui-card.load()
   function scan(node) {
     if (!node) return;
     try {
       const tag = (node.tagName || '').toLowerCase();
-      if (tag.includes('error-card') || tag.includes('hui-card') || tag.includes('hui-view')) {
+
+      // 如果遇到包含本卡片配置的 hui-card，直接调用其原生 load() 重建
+      if (tag === 'hui-card') {
+        const type = node.config?.type || '';
+        if (type.includes('consumable-tracking-card') || type.includes('consumable-tracking')) {
+          if (typeof node.load === 'function') {
+            node.load();
+          }
+        }
+      }
+
+      // 如果遇到错误卡片，派发事件并通知其父级容器重建
+      if (tag.includes('error-card') || tag.includes('ha-alert')) {
         const text = node.innerText || node.textContent || '';
         if (text.includes('consumable-tracking-card') || text.includes('consumable-tracking')) {
           node.dispatchEvent(rebuildEvent());
+          if (node.parentElement && typeof node.parentElement.load === 'function') {
+            node.parentElement.load();
+          }
         }
       }
+
+      // 递归穿透 ShadowRoot 与子节点
       if (node.shadowRoot) scan(node.shadowRoot);
       if (node.children) {
         for (let i = 0; i < node.children.length; i++) {
@@ -1352,6 +1369,15 @@ function _healConsumableTrackingErrorCards() {
   } catch (_) {}
 }
 
-// 在模块加载完成后立即执行自愈，并在随后的渲染时隙点进行多级保障
+// 模块加载完成后立即执行自愈
 _healConsumableTrackingErrorCards();
-[50, 150, 400, 1000, 2500].forEach(ms => setTimeout(_healConsumableTrackingErrorCards, ms));
+
+// 在随后的关键时序点（覆盖渲染阶段与网络延迟）分级轮询保障
+[50, 150, 300, 600, 1200, 2500, 5000].forEach(ms => setTimeout(_healConsumableTrackingErrorCards, ms));
+
+// 启动 MutationObserver 监听首屏渲染变动，一旦出现该错误卡片立刻就地秒级治愈
+try {
+  const observer = new MutationObserver(() => _healConsumableTrackingErrorCards());
+  observer.observe(document.body, { childList: true, subtree: true });
+  setTimeout(() => observer.disconnect(), 15000);
+} catch (_) {}
