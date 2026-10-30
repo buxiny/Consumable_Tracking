@@ -1,16 +1,16 @@
 /**
  * Home Assistant - Consumable Tracking Card (耗材与事务跟踪卡片)
- * Version: 1.1.6 [Theme-A: Tech Blue]
+ * Version: 1.1.7 [Theme-A: Tech Blue Ultra-Compact]
  */
 console.info(
-  '%c CONSUMABLE-TRACKING-CARD %c v1.1.6 [科技蔚蓝] %c',
+  '%c CONSUMABLE-TRACKING-CARD %c v1.1.7 [极致超紧凑] %c',
   'background:#0284c7;color:#fff;padding:3px 6px;border-radius:3px 0 0 3px;font-weight:bold;font-size:11px;',
   'background:#38bdf8;color:#0f172a;padding:3px 6px;border-radius:0 3px 3px 0;font-weight:bold;font-size:11px;',
   'background:transparent;'
 );
 /**
  * Consumable Tracking Card (耗材与事务跟踪卡片)
- * 紧凑、现代、简约风格，原生支持 Home Assistant
+ * 极致紧凑、现代、简约风格，原生支持 Home Assistant
  */
 
 class ConsumableTrackingCard extends HTMLElement {
@@ -25,6 +25,8 @@ class ConsumableTrackingCard extends HTMLElement {
     this._resetTargetItem = null;
     this._showHistoryModal = false;
     this._historyTargetItem = null;
+    this._showActionMenuModal = false;
+    this._actionMenuItem = null;
   }
 
   set hass(hass) {
@@ -295,39 +297,37 @@ class ConsumableTrackingCard extends HTMLElement {
           font-weight: 500;
         }
 
-        /* 耗材卡片列表 */
+        /* 耗材卡片列表 (极简紧凑行设计) */
         .item-list {
           display: flex;
           flex-direction: column;
-          gap: 12px;
+          gap: 6px;
         }
 
         .item-card {
           background: var(--ct-card-bg, #ffffff);
           border: 1px solid var(--ct-border-color, #e5e7eb);
-          border-radius: 12px;
-          padding: 12px 14px;
+          border-radius: 10px;
+          padding: 8px 10px;
           box-shadow: 0 1px 3px rgba(0,0,0,0.03);
-          transition: transform 0.15s, box-shadow 0.15s;
-        }
-        .item-card:hover {
-          box-shadow: 0 3px 10px rgba(0,0,0,0.07);
-        }
-
-        /* 顶部信息与操作行（对齐附图） */
-        .item-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 10px;
-          gap: 8px;
-        }
-        .item-info {
+          transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
           display: flex;
           align-items: center;
           gap: 10px;
-          min-width: 0;
-          flex: 1;
+        }
+        .item-card:hover {
+          box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+          border-color: #cbd5e1;
+        }
+
+        /* 左侧把手与标题名称 */
+        .item-left-col {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-shrink: 0;
+          min-width: 120px;
+          max-width: 170px;
         }
         .drag-handle {
           cursor: grab;
@@ -338,6 +338,7 @@ class ConsumableTrackingCard extends HTMLElement {
           padding: 2px;
           border-radius: 4px;
           transition: color 0.2s, background 0.2s;
+          flex-shrink: 0;
         }
         .drag-handle:hover {
           color: var(--primary-color, #0284c7);
@@ -345,26 +346,6 @@ class ConsumableTrackingCard extends HTMLElement {
         }
         .drag-handle svg {
           display: block;
-        }
-        .item-icon {
-          width: 36px;
-          height: 36px;
-          border-radius: 8px;
-          background: #f1f5f9;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: #0284c7;
-          flex-shrink: 0;
-        }
-        .item-icon ha-icon {
-          --mdc-icon-size: 20px;
-        }
-        .item-title-group {
-          display: flex;
-          flex-direction: column;
-          gap: 3px;
-          min-width: 0;
         }
         .item-name {
           font-size: 15px;
@@ -374,106 +355,18 @@ class ConsumableTrackingCard extends HTMLElement {
           text-overflow: ellipsis;
           white-space: nowrap;
           line-height: 1.25;
+          cursor: pointer;
+          transition: color 0.15s;
         }
-        .item-badge-row {
-          display: flex;
-          gap: 6px;
-          align-items: center;
-        }
-        .category-tag {
-          font-size: 11px;
-          color: #64748b;
-          background: #f1f5f9;
-          padding: 1px 8px;
-          border-radius: 10px;
-          line-height: 1.3;
-          width: fit-content;
-        }
-        .note-tag {
-          font-size: 11px;
-          color: #94a3b8;
-          max-width: 130px;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
+        .item-name:hover {
+          color: var(--primary-color, #0284c7);
         }
 
-        /* 顶部右侧操作栏（附图样式） */
-        .item-actions {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          flex-shrink: 0;
-        }
-        .btn-history {
-          background: #f8fafc;
-          border: 1px solid #cbd5e1;
-          color: #475569;
-          font-size: 12px;
-          font-weight: 500;
-          padding: 4px 10px;
-          border-radius: 6px;
+        /* 紧凑横向胶囊进度条 (整条可点击弹窗) */
+        .progress-col {
+          flex: 1;
+          min-width: 0;
           cursor: pointer;
-          transition: all 0.15s;
-          line-height: 1.2;
-        }
-        .btn-history:hover {
-          background: #f1f5f9;
-          border-color: #94a3b8;
-          color: #1e293b;
-        }
-        .btn-replace {
-          background: #0284c7;
-          border: 1px solid #0284c7;
-          color: #ffffff;
-          font-size: 12px;
-          font-weight: 600;
-          padding: 4px 10px;
-          border-radius: 6px;
-          cursor: pointer;
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          transition: all 0.15s;
-          line-height: 1.2;
-          box-shadow: 0 1px 2px rgba(2, 132, 199, 0.2);
-        }
-        .btn-replace:hover {
-          background: #0369a1;
-          border-color: #0369a1;
-        }
-        .btn-replace svg {
-          display: block;
-        }
-        .btn-icon {
-          width: 28px;
-          height: 28px;
-          padding: 0;
-          border: none;
-          background: transparent;
-          border-radius: 6px;
-          cursor: pointer;
-          color: #6b7280;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          transition: all 0.15s;
-        }
-        .btn-icon:hover {
-          background: #f3f4f6;
-          color: #1f2937;
-        }
-        .btn-icon.btn-delete:hover {
-          color: #ef4444;
-          background: #fee2e2;
-        }
-        .btn-icon ha-icon {
-          --mdc-icon-size: 18px;
-        }
-
-        /* 进度条与浮动文字（方案 A 科技蔚蓝纯白字·透明底） */
-        .progress-section {
-          margin-top: 6px;
         }
         .progress-track-wrapper {
           position: relative;
@@ -485,6 +378,10 @@ class ConsumableTrackingCard extends HTMLElement {
           display: flex;
           align-items: center;
           container-type: inline-size;
+          transition: filter 0.15s, transform 0.15s;
+        }
+        .progress-track-wrapper:hover {
+          filter: brightness(1.03);
         }
         .progress-fill-mask {
           position: absolute;
@@ -551,6 +448,59 @@ class ConsumableTrackingCard extends HTMLElement {
         .progress-inner-text .text-center.expired {
           color: #ffffff !important;
           text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6) !important;
+        }
+
+        /* 快捷操作菜单弹窗样式 */
+        .action-menu-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+          margin-top: 14px;
+          margin-bottom: 6px;
+        }
+        .menu-action-btn {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 12px 14px;
+          border-radius: 8px;
+          border: 1px solid var(--ct-border-color);
+          background: var(--ct-track-bg);
+          color: var(--ct-text-primary);
+          font-size: 13px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          text-align: left;
+        }
+        .menu-action-btn ha-icon {
+          --mdc-icon-size: 20px;
+        }
+        .menu-action-btn:hover {
+          transform: translateY(-1px);
+        }
+        .menu-action-btn.btn-act-replace {
+          background: #0284c7;
+          border-color: #0284c7;
+          color: #ffffff;
+        }
+        .menu-action-btn.btn-act-replace:hover {
+          background: #0369a1;
+        }
+        .menu-action-btn.btn-act-history:hover {
+          background: #f1f5f9;
+          border-color: #94a3b8;
+        }
+        .menu-action-btn.btn-act-edit:hover {
+          background: #f1f5f9;
+          border-color: #94a3b8;
+        }
+        .menu-action-btn.btn-act-delete {
+          color: #ef4444;
+        }
+        .menu-action-btn.btn-act-delete:hover {
+          background: #fee2e2;
+          border-color: #fca5a5;
         }
 
         /* 空状态 */
@@ -704,6 +654,9 @@ class ConsumableTrackingCard extends HTMLElement {
         <!-- 弹窗：新建 / 编辑耗材 -->
         ${this._showModal ? this._renderEditModal() : ''}
 
+        <!-- 弹窗：操作菜单 (已更换 / 历史 / 编辑 / 删除) -->
+        ${this._showActionMenuModal ? this._renderActionMenuModal() : ''}
+
         <!-- 弹窗：确认更换并归档 -->
         ${this._showResetModal ? this._renderResetModal() : ''}
 
@@ -741,38 +694,23 @@ class ConsumableTrackingCard extends HTMLElement {
 
     return `
       <div class="item-card" data-id="${item.id}" draggable="true">
-        <!-- 顶部信息与操作行（对齐附图） -->
-        <div class="item-header">
-          <div class="item-info">
-            <div class="drag-handle" title="按住拖拽排序">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                <circle cx="8" cy="5" r="1.8"/>
-                <circle cx="16" cy="5" r="1.8"/>
-                <circle cx="8" cy="12" r="1.8"/>
-                <circle cx="16" cy="12" r="1.8"/>
-                <circle cx="8" cy="19" r="1.8"/>
-                <circle cx="16" cy="19" r="1.8"/>
-              </svg>
-            </div>
-            <div class="item-title-group">
-              <span class="item-name" title="${item.name}">${item.name}</span>
-            </div>
+        <!-- 左侧把手与名称 -->
+        <div class="item-left-col">
+          <div class="drag-handle" title="按住拖拽排序">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <circle cx="8" cy="5" r="1.8"/>
+              <circle cx="16" cy="5" r="1.8"/>
+              <circle cx="8" cy="12" r="1.8"/>
+              <circle cx="16" cy="12" r="1.8"/>
+              <circle cx="8" cy="19" r="1.8"/>
+              <circle cx="16" cy="19" r="1.8"/>
+            </svg>
           </div>
-
-          <div class="item-actions">
-            <button type="button" class="btn-history" data-action="history" data-id="${item.id}" title="查看更换历史">历史</button>
-            <button type="button" class="btn-replace" data-action="reset" data-id="${item.id}" title="完成并记录更换">已更换</button>
-            <button type="button" class="btn-icon" data-action="edit" data-id="${item.id}" title="编辑">
-              <ha-icon icon="mdi:pencil-outline"></ha-icon>
-            </button>
-            <button type="button" class="btn-icon btn-delete" data-action="delete" data-id="${item.id}" title="删除">
-              <ha-icon icon="mdi:trash-can-outline"></ha-icon>
-            </button>
-          </div>
+          <span class="item-name" data-id="${item.id}" title="${item.name} (点击管理)">${item.name}</span>
         </div>
 
-        <!-- 底部紧凑横向胶囊进度条（对齐附图） -->
-        <div class="progress-section">
+        <!-- 中右侧紧凑横向胶囊进度条（对齐附图2，整条点击弹窗） -->
+        <div class="progress-col" data-id="${item.id}" title="点击打开 ${item.name} 操作面板">
           <div class="progress-track-wrapper">
             <div class="progress-fill-mask" style="width: ${Math.min(Math.max(item.progress, 0), 100)}%;">
               <div class="progress-fill-bar ${statusClass}"></div>
@@ -782,6 +720,51 @@ class ConsumableTrackingCard extends HTMLElement {
               <span class="text-center ${item.status === 'expired' ? 'expired' : ''}">${this._getCenterProgressText(item)}</span>
               <span class="text-end">${this._formatYM(item.expected_ym || item.expected_end_date)}</span>
             </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  _renderActionMenuModal() {
+    const item = this._actionMenuItem;
+    if (!item) return '';
+
+    return `
+      <div class="modal-overlay" id="actionMenuOverlay">
+        <div class="modal-box" style="max-width: 380px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--ct-border-color); padding-bottom: 10px;">
+            <div class="modal-title" style="margin-bottom: 0;">⚙️ 管理：${item.name}</div>
+            <button type="button" class="btn-icon" id="closeActionMenuIconBtn" title="关闭" style="color: var(--ct-text-secondary); cursor: pointer; border: none; background: transparent;">
+              <ha-icon icon="mdi:close"></ha-icon>
+            </button>
+          </div>
+
+          <div style="font-size: 12px; color: var(--ct-text-secondary); margin-bottom: 10px;">
+            周期：${this._formatYM(item.start_ym || item.start_date)} ~ ${this._formatYM(item.expected_ym || item.expected_end_date)} &nbsp;|&nbsp; ${this._getCenterProgressText(item)}
+          </div>
+
+          <div class="action-menu-grid">
+            <button type="button" class="menu-action-btn btn-act-replace" data-action="reset" data-id="${item.id}">
+              <ha-icon icon="mdi:check-circle-outline"></ha-icon>
+              <span>已更换 (开启新周期)</span>
+            </button>
+            <button type="button" class="menu-action-btn btn-act-history" data-action="history" data-id="${item.id}">
+              <ha-icon icon="mdi:history"></ha-icon>
+              <span>更换历史记录</span>
+            </button>
+            <button type="button" class="menu-action-btn btn-act-edit" data-action="edit" data-id="${item.id}">
+              <ha-icon icon="mdi:pencil-outline"></ha-icon>
+              <span>编辑耗材参数</span>
+            </button>
+            <button type="button" class="menu-action-btn btn-act-delete" data-action="delete" data-id="${item.id}">
+              <ha-icon icon="mdi:trash-can-outline"></ha-icon>
+              <span>删除该耗材</span>
+            </button>
+          </div>
+
+          <div class="modal-actions" style="margin-top: 10px;">
+            <button type="button" class="btn-cancel" id="closeActionMenuBtn" style="width: 100%;">关闭</button>
           </div>
         </div>
       </div>
@@ -1068,13 +1051,48 @@ class ConsumableTrackingCard extends HTMLElement {
       };
     });
 
-    // 卡片动作按钮（历史、重置、编辑、删除）
-    root.querySelectorAll('.btn-history, .btn-replace, .btn-icon').forEach(btn => {
+    // 点击耗材名称或胶囊进度条，打开操作弹窗菜单
+    root.querySelectorAll('.item-name, .progress-col').forEach(el => {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        const itemId = el.dataset.id;
+        const item = this._items.find(i => i.id === itemId);
+        if (item) {
+          this._actionMenuItem = item;
+          this._showActionMenuModal = true;
+          this._render();
+        }
+      };
+    });
+
+    // 操作菜单关闭事件
+    const closeActionMenu = () => {
+      this._showActionMenuModal = false;
+      this._actionMenuItem = null;
+      this._render();
+    };
+    const closeActionMenuBtn = root.querySelector('#closeActionMenuBtn');
+    const closeActionMenuIconBtn = root.querySelector('#closeActionMenuIconBtn');
+    const actionMenuOverlay = root.querySelector('#actionMenuOverlay');
+    if (closeActionMenuBtn) closeActionMenuBtn.onclick = closeActionMenu;
+    if (closeActionMenuIconBtn) closeActionMenuIconBtn.onclick = closeActionMenu;
+    if (actionMenuOverlay) {
+      actionMenuOverlay.onclick = (e) => {
+        if (e.target === actionMenuOverlay) closeActionMenu();
+      };
+    }
+
+    // 操作菜单内的动作按钮 (已更换、历史、编辑、删除)
+    root.querySelectorAll('.menu-action-btn, .btn-history, .btn-replace, .btn-icon').forEach(btn => {
       btn.onclick = (e) => {
         e.stopPropagation();
         const action = btn.dataset.action;
         const itemId = btn.dataset.id;
         const item = this._items.find(i => i.id === itemId);
+
+        // 关闭主菜单
+        this._showActionMenuModal = false;
+        this._actionMenuItem = null;
 
         if (action === 'history' && item) {
           this._historyTargetItem = item;
@@ -1091,6 +1109,8 @@ class ConsumableTrackingCard extends HTMLElement {
         } else if (action === 'delete') {
           if (confirm('确定要删除该耗材跟踪记录吗？')) {
             this._deleteItem(itemId);
+          } else {
+            this._render();
           }
         }
       };
@@ -1321,32 +1341,18 @@ function _healConsumableTrackingErrorCards() {
     composed: true,
   });
 
-  // 1. 全局派发标准 rebuild 事件
-  try {
-    window.dispatchEvent(rebuildEvent());
-    document.dispatchEvent(rebuildEvent());
-  } catch (_) {}
-
-  // 2. 深度穿透扫描 Shadow DOM 唤醒受阻的卡片与直接调用 hui-card.load()
+  // 深度穿透扫描 Shadow DOM，仅在确实存在错误卡片时精准修复
+  let foundError = false;
   function scan(node) {
     if (!node) return;
     try {
       const tag = (node.tagName || '').toLowerCase();
 
-      // 如果遇到包含本卡片配置的 hui-card，直接调用其原生 load() 重建
-      if (tag === 'hui-card') {
-        const type = node.config?.type || '';
-        if (type.includes('consumable-tracking-card') || type.includes('consumable-tracking')) {
-          if (typeof node.load === 'function') {
-            node.load();
-          }
-        }
-      }
-
       // 如果遇到错误卡片，派发事件并通知其父级容器重建
       if (tag.includes('error-card') || tag.includes('ha-alert')) {
         const text = node.innerText || node.textContent || '';
         if (text.includes('consumable-tracking-card') || text.includes('consumable-tracking')) {
+          foundError = true;
           node.dispatchEvent(rebuildEvent());
           if (node.parentElement && typeof node.parentElement.load === 'function') {
             node.parentElement.load();
@@ -1367,17 +1373,37 @@ function _healConsumableTrackingErrorCards() {
   try {
     scan(document.querySelector('home-assistant') || document.body);
   } catch (_) {}
+
+  // 仅在扫描到错误卡片时才向全局派发 rebuild
+  if (foundError) {
+    try {
+      window.dispatchEvent(rebuildEvent());
+      document.dispatchEvent(rebuildEvent());
+    } catch (_) {}
+  }
 }
 
-// 模块加载完成后立即执行自愈
+// 模块加载完成后执行一次检测
 _healConsumableTrackingErrorCards();
 
-// 在随后的关键时序点（覆盖渲染阶段与网络延迟）分级轮询保障
-[50, 150, 300, 600, 1200, 2500, 5000].forEach(ms => setTimeout(_healConsumableTrackingErrorCards, ms));
-
-// 启动 MutationObserver 监听首屏渲染变动，一旦出现该错误卡片立刻就地秒级治愈
+// 仅在出现错误卡片时通过 MutationObserver 触发修复，正常渲染时不发起多余重绘
 try {
-  const observer = new MutationObserver(() => _healConsumableTrackingErrorCards());
+  let healed = false;
+  const observer = new MutationObserver((mutations) => {
+    if (healed) return;
+    for (const m of mutations) {
+      if (m.addedNodes && m.addedNodes.length) {
+        for (const n of m.addedNodes) {
+          const text = n.textContent || '';
+          if (text.includes('consumable-tracking-card') && text.includes('doesn\'t exist')) {
+            _healConsumableTrackingErrorCards();
+            healed = true;
+            break;
+          }
+        }
+      }
+    }
+  });
   observer.observe(document.body, { childList: true, subtree: true });
-  setTimeout(() => observer.disconnect(), 15000);
+  setTimeout(() => observer.disconnect(), 10000);
 } catch (_) {}
