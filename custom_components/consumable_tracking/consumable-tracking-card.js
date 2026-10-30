@@ -1,9 +1,9 @@
 /**
  * Home Assistant - Consumable Tracking Card (耗材与事务跟踪卡片)
- * Version: 1.1.2 [Theme-A: Tech Blue]
+ * Version: 1.1.6 [Theme-A: Tech Blue]
  */
 console.info(
-  '%c CONSUMABLE-TRACKING-CARD %c v1.1.2 [科技蔚蓝] %c',
+  '%c CONSUMABLE-TRACKING-CARD %c v1.1.6 [科技蔚蓝] %c',
   'background:#0284c7;color:#fff;padding:3px 6px;border-radius:3px 0 0 3px;font-weight:bold;font-size:11px;',
   'background:#38bdf8;color:#0f172a;padding:3px 6px;border-radius:0 3px 3px 0;font-weight:bold;font-size:11px;',
   'background:transparent;'
@@ -1292,10 +1292,15 @@ class ConsumableTrackingCard extends HTMLElement {
   }
 }
 
+// 1. 注册核心自定义元素与别名
 if (!customElements.get('consumable-tracking-card')) {
   customElements.define('consumable-tracking-card', ConsumableTrackingCard);
 }
+if (!customElements.get('consumable-tracking')) {
+  customElements.define('consumable-tracking', class extends ConsumableTrackingCard {});
+}
 
+// 2. 注册至 Lovelace 卡片选择器
 if (!window.customCards) {
   window.customCards = [];
 }
@@ -1307,3 +1312,46 @@ if (!window.customCards.some(c => c.type === 'consumable-tracking-card')) {
     preview: true
   });
 }
+
+// 3. 自愈机制：彻底解决偶发时序延迟导致的 "Custom element doesn't exist" 错误卡片
+function _healConsumableTrackingErrorCards() {
+  const rebuildEvent = () => new CustomEvent('ll-rebuild', {
+    bubbles: true,
+    cancelable: false,
+    composed: true,
+  });
+
+  // 全局派发
+  try {
+    window.dispatchEvent(rebuildEvent());
+    document.dispatchEvent(rebuildEvent());
+  } catch (_) {}
+
+  // 深度扫描 Shadow DOM 唤醒受阻的错误卡片
+  function scan(node) {
+    if (!node) return;
+    try {
+      const tag = (node.tagName || '').toLowerCase();
+      if (tag.includes('error-card') || tag.includes('hui-card') || tag.includes('hui-view')) {
+        const text = node.innerText || node.textContent || '';
+        if (text.includes('consumable-tracking-card') || text.includes('consumable-tracking')) {
+          node.dispatchEvent(rebuildEvent());
+        }
+      }
+      if (node.shadowRoot) scan(node.shadowRoot);
+      if (node.children) {
+        for (let i = 0; i < node.children.length; i++) {
+          scan(node.children[i]);
+        }
+      }
+    } catch (_) {}
+  }
+
+  try {
+    scan(document.querySelector('home-assistant') || document.body);
+  } catch (_) {}
+}
+
+// 在模块加载完成后立即执行自愈，并在随后的渲染时隙点进行多级保障
+_healConsumableTrackingErrorCards();
+[50, 150, 400, 1000, 2500].forEach(ms => setTimeout(_healConsumableTrackingErrorCards, ms));

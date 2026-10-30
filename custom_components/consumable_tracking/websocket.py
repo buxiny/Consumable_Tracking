@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant
 
 from .const import (
     DOMAIN,
+    VERSION,
     WS_TYPE_DELETE_ITEM,
     WS_TYPE_GET_CONFIG,
     WS_TYPE_LIST_ITEMS,
@@ -148,7 +149,7 @@ def async_register_websocket_api(
         connection.send_result(
             msg["id"],
             {
-                "version": "1.1.5",
+                "version": VERSION,
                 "notify_service": cfg.get("notify_service"),
                 "due_notification": cfg.get("due_notification"),
                 "periodic_summary": cfg.get("periodic_summary"),

@@ -15,7 +15,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import CoreState, HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.discovery import async_load_platform
-from homeassistant.helpers.event import async_track_time_change
+from homeassistant.helpers.event import async_call_later, async_track_time_change
 
 from .const import (
     CARD_FILENAME,
@@ -44,6 +44,7 @@ from .const import (
     SERVICE_SEND_SUMMARY,
     SERVICE_TRIGGER_CHECK,
     SERVICE_UPDATE_ITEM,
+    VERSION,
 )
 from .notify import NotificationManager
 from .storage import ConsumableStorage
@@ -100,23 +101,27 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         "config": conf,
     }
 
-    # 3. 注册静态资源路径 (前端卡片)
+    # 3. 注册静态资源路径 (前端卡片与静态目录)
     card_path = os.path.join(os.path.dirname(__file__), CARD_FILENAME)
-    try:
-        card_mtime = str(int(os.path.getmtime(card_path)))
-    except Exception:
-        card_mtime = "0"
-    card_version = f"1.1.5_{card_mtime}"
-    current_card_url = f"{CARD_URL}?v={card_version}"
+    card_dir = os.path.dirname(__file__)
+    current_card_url = f"{CARD_URL}?v={VERSION}"
 
     if hasattr(hass.http, "async_register_static_paths"):
-        await hass.http.async_register_static_paths(
-            [StaticPathConfig(CARD_URL, card_path, cache_headers=False)]
-        )
+        try:
+            await hass.http.async_register_static_paths([
+                StaticPathConfig(CARD_URL, card_path, cache_headers=True),
+                StaticPathConfig(FRONTEND_URL_PATH, card_dir, cache_headers=True),
+            ])
+        except Exception as ex:
+            _LOGGER.debug("async_register_static_paths: %s", ex)
     else:
-        hass.http.register_static_path(CARD_URL, card_path, cache_headers=False)
+        try:
+            hass.http.register_static_path(CARD_URL, card_path, cache_headers=True)
+            hass.http.register_static_path(FRONTEND_URL_PATH, card_dir, cache_headers=True)
+        except Exception as ex:
+            _LOGGER.debug("register_static_path: %s", ex)
 
-    # 4. 自动注入前端 extra_js_url 与 Lovelace 资源 (免用户手动添加 Resources)
+    # 4. 自动注入前端 extra_js_url (双重保底)
     try:
         from homeassistant.components.frontend import add_extra_js_url
         add_extra_js_url(hass, current_card_url)
@@ -124,44 +129,69 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     except Exception as ex:
         _LOGGER.debug("add_extra_js_url 注入失败或不可用: %s", ex)
 
-    # 同时尝试自动注册至 Lovelace storage resources (兼容 Cast 及原生加载，自动破除旧缓存)
-    async def _async_register_lovelace_resource(_event=None) -> None:
+    # 5. 自动注册至 Lovelace storage resources (带异步重试与自愈，彻底杜绝元素不存在)
+    async def _async_register_lovelace_resource(_event=None, retry: int = 0) -> None:
         try:
             lovelace = hass.data.get("lovelace")
-            if lovelace and hasattr(lovelace, "resources"):
-                resources = lovelace.resources
-                if not getattr(resources, "loaded", True) and hasattr(resources, "async_load"):
-                    await resources.async_load()
-                
-                # 检查是否已存在任何旧卡片资源（无论是否带旧参数）
-                existing = [
-                    r for r in resources.async_items()
-                    if CARD_FILENAME in r.get("url", "")
-                ]
-                if not existing:
-                    _LOGGER.info("正在自动向 Lovelace 添加 consumable-tracking-card 资源: %s", current_card_url)
-                    await resources.async_create_item({
-                        "res_type": "module",
-                        "url": current_card_url,
-                    })
-                else:
-                    # 发现任何不等于最新动态版本的资源，直接强制更新！彻底击穿缓存死角
-                    for r in existing:
-                        if r.get("url") != current_card_url:
-                            await resources.async_update_item(r["id"], {
-                                "res_type": "module",
-                                "url": current_card_url,
-                            })
-                            _LOGGER.info("已将 Lovelace 资源 %s 强制升级至最新版本: %s", r.get("id"), current_card_url)
+            if not lovelace or not hasattr(lovelace, "resources"):
+                if retry < 12:
+                    async_call_later(
+                        hass,
+                        2.5,
+                        lambda _: hass.async_create_task(_async_register_lovelace_resource(retry=retry + 1)),
+                    )
+                return
+
+            resources = lovelace.resources
+            if hasattr(resources, "loaded") and not resources.loaded:
+                if retry < 12:
+                    async_call_later(
+                        hass,
+                        2.5,
+                        lambda _: hass.async_create_task(_async_register_lovelace_resource(retry=retry + 1)),
+                    )
+                return
+
+            if not hasattr(resources, "async_items") or not hasattr(resources, "async_create_item"):
+                _LOGGER.debug("Lovelace 为 YAML 模式或只读模式，使用 extra_js_url 加载卡片")
+                return
+
+            items = resources.async_items() or []
+            existing = [
+                r for r in items
+                if CARD_FILENAME in r.get("url", "")
+            ]
+
+            if not existing:
+                _LOGGER.info("正在自动向 Lovelace 添加 consumable-tracking-card 资源: %s", current_card_url)
+                await resources.async_create_item({
+                    "res_type": "module",
+                    "url": current_card_url,
+                })
+            else:
+                for r in existing:
+                    if r.get("url") != current_card_url:
+                        await resources.async_update_item(r["id"], {
+                            "res_type": "module",
+                            "url": current_card_url,
+                        })
+                        _LOGGER.info("已将 Lovelace 资源 %s 升级至最新版本: %s", r.get("id"), current_card_url)
         except Exception as err:
-            _LOGGER.debug("自动向 Lovelace 注册资源跳过: %s", err)
+            _LOGGER.debug("自动向 Lovelace 注册资源异常 (重试 %s): %s", retry, err)
+            if retry < 12:
+                async_call_later(
+                    hass,
+                    2.5,
+                    lambda _: hass.async_create_task(_async_register_lovelace_resource(retry=retry + 1)),
+                )
 
-    if hass.state == CoreState.running:
-        await _async_register_lovelace_resource()
-    else:
-        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _async_register_lovelace_resource)
+    hass.async_create_task(_async_register_lovelace_resource())
+    hass.bus.async_listen_once(
+        EVENT_HOMEASSISTANT_STARTED,
+        lambda _: hass.async_create_task(_async_register_lovelace_resource())
+    )
 
-    # 4. 注册 WebSocket API
+    # 6. 注册 WebSocket API
     async_register_websocket_api(hass, storage)
 
     # 5. 加载传感器平台
@@ -248,6 +278,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """通过 UI 添加集成条目时的初始化。"""
     if DOMAIN not in hass.data:
         await async_setup(hass, {})
+    else:
+        # UI 配置条目初始化时确保触发一次 Lovelace 资源注册
+        lovelace = hass.data.get("lovelace")
+        if lovelace and hasattr(lovelace, "resources"):
+            res = lovelace.resources
+            if hasattr(res, "loaded") and res.loaded and hasattr(res, "async_items") and hasattr(res, "async_create_item"):
+                items = res.async_items() or []
+                card_url_with_v = f"{CARD_URL}?v={VERSION}"
+                if not any(CARD_FILENAME in r.get("url", "") for r in items):
+                    try:
+                        await res.async_create_item({
+                            "res_type": "module",
+                            "url": card_url_with_v,
+                        })
+                    except Exception as err:
+                        _LOGGER.debug("UI entry resource register: %s", err)
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
