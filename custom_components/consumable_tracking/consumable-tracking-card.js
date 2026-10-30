@@ -1,9 +1,9 @@
 /**
  * Home Assistant - Consumable Tracking Card (耗材与事务跟踪卡片)
- * Version: 1.1.8 [Theme-A: Tech Blue Ultra-Compact]
+ * Version: 1.1.9 [Theme-A: Tech Blue Ultra-Compact]
  */
 console.info(
-  '%c CONSUMABLE-TRACKING-CARD %c v1.1.8 [极致超紧凑] %c',
+  '%c CONSUMABLE-TRACKING-CARD %c v1.1.9 [极致超紧凑] %c',
   'background:#0284c7;color:#fff;padding:3px 6px;border-radius:3px 0 0 3px;font-weight:bold;font-size:11px;',
   'background:#38bdf8;color:#0f172a;padding:3px 6px;border-radius:0 3px 3px 0;font-weight:bold;font-size:11px;',
   'background:transparent;'
@@ -372,12 +372,13 @@ class ConsumableTrackingCard extends HTMLElement {
           position: relative;
           width: 100%;
           height: 28px;
-          background: #cbd5e1;
+          background: #334155;
           border-radius: 14px;
           overflow: hidden;
           display: flex;
           align-items: center;
           container-type: inline-size;
+          box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.25);
           transition: filter 0.15s, transform 0.15s;
         }
         .progress-track-wrapper:hover {
@@ -436,18 +437,18 @@ class ConsumableTrackingCard extends HTMLElement {
           border: none !important;
           box-shadow: none !important;
           padding: 0 !important;
-          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5) !important;
+          text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7) !important;
         }
         .progress-inner-text .text-center {
           font-size: 13px;
           font-weight: 700;
           color: #ffffff !important;
           letter-spacing: 0.2px;
-          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5) !important;
+          text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7) !important;
         }
         .progress-inner-text .text-center.expired {
           color: #ffffff !important;
-          text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6) !important;
+          text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8) !important;
         }
 
         /* 快捷操作菜单弹窗样式 */
@@ -1334,121 +1335,147 @@ if (!window.customCards.some(c => c.type === 'consumable-tracking-card')) {
   });
 }
 
-// 3. 增强自愈与拦截机制：彻底解决偶发时序延迟导致的 "Custom element doesn't exist" 错误卡片
-// (1) 拦截 HuiErrorCard 原型方法，若其因时序差挂载了 consumable-tracking-card 错误卡片，第一时间自动触发重建
-(function _patchHuiErrorCard() {
-  function applyPatch() {
+// 3. 拦截与自愈体系：彻底根治 Lovelace 时序差造成的 "Custom element doesn't exist"
+// (1) 拦截 HuiCard 原型方法，若其子组件处于错误卡片状态，自动触发重新挂载
+(function _setupHuiCardWatcher() {
+  function patchHuiCardClass() {
     try {
-      const HuiErrorCard = customElements.get('hui-error-card');
-      if (!HuiErrorCard || !HuiErrorCard.prototype || HuiErrorCard.prototype._ctPatched) return;
-      HuiErrorCard.prototype._ctPatched = true;
+      const HuiCard = customElements.get('hui-card');
+      if (!HuiCard || !HuiCard.prototype || HuiCard.prototype._ctObserverPatched) return;
+      HuiCard.prototype._ctObserverPatched = true;
 
-      const origSetConfig = HuiErrorCard.prototype.setConfig;
-      HuiErrorCard.prototype.setConfig = function(config) {
-        origSetConfig?.call(this, config);
+      const rebuildHuiCard = (instance) => {
         try {
-          const cfg = this._config || config;
-          const origType = cfg?.origConfig?.type || '';
-          const errMsg = cfg?.error || '';
-          if (origType.includes('consumable-tracking') || errMsg.includes('consumable-tracking')) {
-            const rebuild = () => {
-              this.dispatchEvent(new CustomEvent('ll-rebuild', { bubbles: true, composed: true }));
-              if (this.parentElement && typeof this.parentElement.load === 'function') {
-                this.parentElement.load();
-              }
-            };
-            setTimeout(rebuild, 0);
-            setTimeout(rebuild, 60);
+          const cfg = instance.config || instance._config;
+          const cType = cfg?.type || '';
+          if (cType.includes('consumable-tracking')) {
+            const el = instance._element || instance.querySelector('hui-error-card') || instance.lastChild;
+            const isError = !el || el.tagName === 'HUI-ERROR-CARD' || (el.tagName && el.tagName.toLowerCase().includes('error')) || (el._config && el._config.error);
+            if (isError) {
+              instance._config = undefined;
+              instance.config = { ...cfg };
+            }
           }
         } catch (_) {}
+      };
+
+      const origUpdated = HuiCard.prototype.updated;
+      HuiCard.prototype.updated = function(changedProps) {
+        origUpdated?.call(this, changedProps);
+        rebuildHuiCard(this);
+      };
+
+      const origConnected = HuiCard.prototype.connectedCallback;
+      HuiCard.prototype.connectedCallback = function() {
+        origConnected?.call(this);
+        rebuildHuiCard(this);
+      };
+    } catch (_) {}
+  }
+
+  if (customElements.get('hui-card')) {
+    patchHuiCardClass();
+  } else {
+    customElements.whenDefined('hui-card').then(patchHuiCardClass);
+  }
+})();
+
+// (2) 拦截 HuiErrorCard 原型方法，如因异步竞态显示了 consumable-tracking-card 错误卡片，第一时间自动触发父级重绘
+(function _setupHuiErrorCardWatcher() {
+  function patchErrorClass() {
+    try {
+      const HuiErrorCard = customElements.get('hui-error-card');
+      if (!HuiErrorCard || !HuiErrorCard.prototype || HuiErrorCard.prototype._ctErrorPatched) return;
+      HuiErrorCard.prototype._ctErrorPatched = true;
+
+      const triggerParentRebuild = (errInstance) => {
+        try {
+          const cfg = errInstance._config || errInstance.config;
+          const origType = cfg?.origConfig?.type || '';
+          const errMsg = cfg?.error || '';
+          const shadow = errInstance.shadowRoot?.textContent || '';
+          if (origType.includes('consumable-tracking') || errMsg.includes('consumable-tracking') || shadow.includes('consumable-tracking')) {
+            const parent = errInstance.closest('hui-card') || errInstance.parentElement;
+            if (parent && (parent.config || parent._config)) {
+              const c = parent.config || parent._config;
+              parent._config = undefined;
+              parent.config = { ...c };
+            }
+          }
+        } catch (_) {}
+      };
+
+      const origFirstUpdated = HuiErrorCard.prototype.firstUpdated;
+      HuiErrorCard.prototype.firstUpdated = function(changedProps) {
+        origFirstUpdated?.call(this, changedProps);
+        triggerParentRebuild(this);
+      };
+
+      const origConnected = HuiErrorCard.prototype.connectedCallback;
+      HuiErrorCard.prototype.connectedCallback = function() {
+        origConnected?.call(this);
+        triggerParentRebuild(this);
       };
     } catch (_) {}
   }
 
   if (customElements.get('hui-error-card')) {
-    applyPatch();
+    patchErrorClass();
   } else {
-    customElements.whenDefined('hui-error-card').then(applyPatch);
+    customElements.whenDefined('hui-error-card').then(patchErrorClass);
   }
 })();
 
-// (2) 深度穿透 Shadow DOM 精准扫描与就地自愈
+// (3) 深度 Shadow DOM 递归穿透扫描与就地自愈
 function _healConsumableTrackingErrorCards() {
-  const rebuildEvent = () => new CustomEvent('ll-rebuild', {
-    bubbles: true,
-    cancelable: false,
-    composed: true,
-  });
-
-  let foundError = false;
-
-  function isCtError(node) {
-    if (!node) return false;
+  function healCard(card) {
+    if (!card) return;
     try {
-      const cfg = node._config || node.config;
-      if (cfg) {
-        const origType = cfg.origConfig?.type || '';
-        const errMsg = cfg.error || '';
-        if (origType.includes('consumable-tracking') || errMsg.includes('consumable-tracking')) {
-          return true;
-        }
-      }
-      const shadowText = node.shadowRoot ? (node.shadowRoot.textContent || '') : '';
-      if (shadowText.includes('consumable-tracking-card') || shadowText.includes('consumable-tracking')) {
-        return true;
-      }
-      const lightText = node.innerText || node.textContent || '';
-      if (lightText.includes('consumable-tracking-card') || lightText.includes('consumable-tracking')) {
-        return true;
+      const cfg = card.config || card._config;
+      const cType = cfg?.type || '';
+      if (!cType.includes('consumable-tracking')) return;
+
+      const el = card._element || card.querySelector('hui-error-card') || card.lastChild;
+      const isError = !el || el.tagName === 'HUI-ERROR-CARD' || (el.tagName && el.tagName.toLowerCase().includes('error')) || (el._config && el._config.error);
+
+      if (isError) {
+        card._config = undefined;
+        card.config = { ...cfg };
       }
     } catch (_) {}
-    return false;
+  }
+
+  function healError(errEl) {
+    if (!errEl) return;
+    try {
+      const cfg = errEl._config || errEl.config;
+      const origType = cfg?.origConfig?.type || '';
+      const errMsg = cfg?.error || '';
+      const shadow = errEl.shadowRoot ? (errEl.shadowRoot.textContent || '') : '';
+      if (origType.includes('consumable-tracking') || errMsg.includes('consumable-tracking') || shadow.includes('consumable-tracking')) {
+        const parent = errEl.closest('hui-card') || errEl.parentElement;
+        if (parent) {
+          healCard(parent);
+        }
+      }
+    } catch (_) {}
   }
 
   function scan(node) {
     if (!node) return;
     try {
       const tag = (node.tagName || '').toLowerCase();
-
-      // 检测 hui-card 容器
       if (tag === 'hui-card') {
-        const cType = node.config?.type || '';
-        if (cType.includes('consumable-tracking')) {
-          const el = node._element;
-          const elTag = (el?.tagName || '').toLowerCase();
-          if (elTag.includes('error') || isCtError(el)) {
-            foundError = true;
-            if (typeof node.load === 'function') {
-              node.load();
-            }
-            if (el) {
-              el.dispatchEvent(rebuildEvent());
-            }
-            node.dispatchEvent(rebuildEvent());
-          }
-        }
+        healCard(node);
+      } else if (tag.includes('error-card')) {
+        healError(node);
       }
 
-      // 检测 hui-error-card 自身
-      if (tag.includes('error-card')) {
-        if (isCtError(node)) {
-          foundError = true;
-          node.dispatchEvent(rebuildEvent());
-          const parent = node.parentElement;
-          if (parent && typeof parent.load === 'function') {
-            parent.load();
-          }
-          if (parent && parent.parentElement && typeof parent.parentElement.load === 'function') {
-            parent.parentElement.load();
-          }
-        }
-      }
-
-      // 递归穿透 ShadowRoot 与子节点
       if (node.shadowRoot) scan(node.shadowRoot);
-      if (node.children) {
-        for (let i = 0; i < node.children.length; i++) {
-          scan(node.children[i]);
+      const children = node.children;
+      if (children) {
+        for (let i = 0; i < children.length; i++) {
+          scan(children[i]);
         }
       }
     } catch (_) {}
@@ -1457,23 +1484,18 @@ function _healConsumableTrackingErrorCards() {
   try {
     scan(document.querySelector('home-assistant') || document.body);
   } catch (_) {}
-
-  // 仅在明确扫描到错误卡片时才向全局派发 rebuild
-  if (foundError) {
-    try {
-      window.dispatchEvent(rebuildEvent());
-      document.dispatchEvent(rebuildEvent());
-    } catch (_) {}
-  }
 }
 
-// (3) 多阶段微任务与定时轮巡执行（仅在有错误时修复，无错误零开销无闪烁）
+// 多阶段静默自愈（无错误时零开销、零DOM操作）
 _healConsumableTrackingErrorCards();
-[50, 150, 300, 600, 1200, 2500].forEach((delay) => {
+[60, 150, 350, 800, 1500, 3000, 6000].forEach((delay) => {
   setTimeout(_healConsumableTrackingErrorCards, delay);
 });
 
-// 监听路由与重构事件
-window.addEventListener('location-changed', () => {
-  setTimeout(_healConsumableTrackingErrorCards, 100);
+window.addEventListener('load', () => setTimeout(_healConsumableTrackingErrorCards, 100));
+window.addEventListener('location-changed', () => setTimeout(_healConsumableTrackingErrorCards, 100));
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    _healConsumableTrackingErrorCards();
+  }
 });
