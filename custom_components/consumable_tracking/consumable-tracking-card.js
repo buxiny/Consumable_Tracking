@@ -1,9 +1,9 @@
 /**
  * Home Assistant - Consumable Tracking Card (耗材与事务跟踪卡片)
- * Version: 1.1.7 [Theme-A: Tech Blue Ultra-Compact]
+ * Version: 1.1.8 [Theme-A: Tech Blue Ultra-Compact]
  */
 console.info(
-  '%c CONSUMABLE-TRACKING-CARD %c v1.1.7 [极致超紧凑] %c',
+  '%c CONSUMABLE-TRACKING-CARD %c v1.1.8 [极致超紧凑] %c',
   'background:#0284c7;color:#fff;padding:3px 6px;border-radius:3px 0 0 3px;font-weight:bold;font-size:11px;',
   'background:#38bdf8;color:#0f172a;padding:3px 6px;border-radius:0 3px 3px 0;font-weight:bold;font-size:11px;',
   'background:transparent;'
@@ -681,12 +681,13 @@ class ConsumableTrackingCard extends HTMLElement {
   }
 
   _getCenterProgressText(item) {
+    const pct = Math.round(Number(item.progress) || 0);
     if (item.remaining_days < 0) {
       return `已超期 ${Math.abs(item.remaining_days)} 天(0%)`;
     } else if (item.remaining_days === 0) {
       return `今日到期(100%)`;
     }
-    return `剩余 ${item.remaining_days} 天(${item.progress}%)`;
+    return `剩 ${item.remaining_days} 天(${pct}%)`;
   }
 
   _renderItemCard(item) {
@@ -1333,7 +1334,45 @@ if (!window.customCards.some(c => c.type === 'consumable-tracking-card')) {
   });
 }
 
-// 3. 增强自愈机制：彻底解决偶发时序延迟导致的 "Custom element doesn't exist" 错误卡片
+// 3. 增强自愈与拦截机制：彻底解决偶发时序延迟导致的 "Custom element doesn't exist" 错误卡片
+// (1) 拦截 HuiErrorCard 原型方法，若其因时序差挂载了 consumable-tracking-card 错误卡片，第一时间自动触发重建
+(function _patchHuiErrorCard() {
+  function applyPatch() {
+    try {
+      const HuiErrorCard = customElements.get('hui-error-card');
+      if (!HuiErrorCard || !HuiErrorCard.prototype || HuiErrorCard.prototype._ctPatched) return;
+      HuiErrorCard.prototype._ctPatched = true;
+
+      const origSetConfig = HuiErrorCard.prototype.setConfig;
+      HuiErrorCard.prototype.setConfig = function(config) {
+        origSetConfig?.call(this, config);
+        try {
+          const cfg = this._config || config;
+          const origType = cfg?.origConfig?.type || '';
+          const errMsg = cfg?.error || '';
+          if (origType.includes('consumable-tracking') || errMsg.includes('consumable-tracking')) {
+            const rebuild = () => {
+              this.dispatchEvent(new CustomEvent('ll-rebuild', { bubbles: true, composed: true }));
+              if (this.parentElement && typeof this.parentElement.load === 'function') {
+                this.parentElement.load();
+              }
+            };
+            setTimeout(rebuild, 0);
+            setTimeout(rebuild, 60);
+          }
+        } catch (_) {}
+      };
+    } catch (_) {}
+  }
+
+  if (customElements.get('hui-error-card')) {
+    applyPatch();
+  } else {
+    customElements.whenDefined('hui-error-card').then(applyPatch);
+  }
+})();
+
+// (2) 深度穿透 Shadow DOM 精准扫描与就地自愈
 function _healConsumableTrackingErrorCards() {
   const rebuildEvent = () => new CustomEvent('ll-rebuild', {
     bubbles: true,
@@ -1341,21 +1380,66 @@ function _healConsumableTrackingErrorCards() {
     composed: true,
   });
 
-  // 深度穿透扫描 Shadow DOM，仅在确实存在错误卡片时精准修复
   let foundError = false;
+
+  function isCtError(node) {
+    if (!node) return false;
+    try {
+      const cfg = node._config || node.config;
+      if (cfg) {
+        const origType = cfg.origConfig?.type || '';
+        const errMsg = cfg.error || '';
+        if (origType.includes('consumable-tracking') || errMsg.includes('consumable-tracking')) {
+          return true;
+        }
+      }
+      const shadowText = node.shadowRoot ? (node.shadowRoot.textContent || '') : '';
+      if (shadowText.includes('consumable-tracking-card') || shadowText.includes('consumable-tracking')) {
+        return true;
+      }
+      const lightText = node.innerText || node.textContent || '';
+      if (lightText.includes('consumable-tracking-card') || lightText.includes('consumable-tracking')) {
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
   function scan(node) {
     if (!node) return;
     try {
       const tag = (node.tagName || '').toLowerCase();
 
-      // 如果遇到错误卡片，派发事件并通知其父级容器重建
-      if (tag.includes('error-card') || tag.includes('ha-alert')) {
-        const text = node.innerText || node.textContent || '';
-        if (text.includes('consumable-tracking-card') || text.includes('consumable-tracking')) {
+      // 检测 hui-card 容器
+      if (tag === 'hui-card') {
+        const cType = node.config?.type || '';
+        if (cType.includes('consumable-tracking')) {
+          const el = node._element;
+          const elTag = (el?.tagName || '').toLowerCase();
+          if (elTag.includes('error') || isCtError(el)) {
+            foundError = true;
+            if (typeof node.load === 'function') {
+              node.load();
+            }
+            if (el) {
+              el.dispatchEvent(rebuildEvent());
+            }
+            node.dispatchEvent(rebuildEvent());
+          }
+        }
+      }
+
+      // 检测 hui-error-card 自身
+      if (tag.includes('error-card')) {
+        if (isCtError(node)) {
           foundError = true;
           node.dispatchEvent(rebuildEvent());
-          if (node.parentElement && typeof node.parentElement.load === 'function') {
-            node.parentElement.load();
+          const parent = node.parentElement;
+          if (parent && typeof parent.load === 'function') {
+            parent.load();
+          }
+          if (parent && parent.parentElement && typeof parent.parentElement.load === 'function') {
+            parent.parentElement.load();
           }
         }
       }
@@ -1374,7 +1458,7 @@ function _healConsumableTrackingErrorCards() {
     scan(document.querySelector('home-assistant') || document.body);
   } catch (_) {}
 
-  // 仅在扫描到错误卡片时才向全局派发 rebuild
+  // 仅在明确扫描到错误卡片时才向全局派发 rebuild
   if (foundError) {
     try {
       window.dispatchEvent(rebuildEvent());
@@ -1383,27 +1467,13 @@ function _healConsumableTrackingErrorCards() {
   }
 }
 
-// 模块加载完成后执行一次检测
+// (3) 多阶段微任务与定时轮巡执行（仅在有错误时修复，无错误零开销无闪烁）
 _healConsumableTrackingErrorCards();
+[50, 150, 300, 600, 1200, 2500].forEach((delay) => {
+  setTimeout(_healConsumableTrackingErrorCards, delay);
+});
 
-// 仅在出现错误卡片时通过 MutationObserver 触发修复，正常渲染时不发起多余重绘
-try {
-  let healed = false;
-  const observer = new MutationObserver((mutations) => {
-    if (healed) return;
-    for (const m of mutations) {
-      if (m.addedNodes && m.addedNodes.length) {
-        for (const n of m.addedNodes) {
-          const text = n.textContent || '';
-          if (text.includes('consumable-tracking-card') && text.includes('doesn\'t exist')) {
-            _healConsumableTrackingErrorCards();
-            healed = true;
-            break;
-          }
-        }
-      }
-    }
-  });
-  observer.observe(document.body, { childList: true, subtree: true });
-  setTimeout(() => observer.disconnect(), 10000);
-} catch (_) {}
+// 监听路由与重构事件
+window.addEventListener('location-changed', () => {
+  setTimeout(_healConsumableTrackingErrorCards, 100);
+});
