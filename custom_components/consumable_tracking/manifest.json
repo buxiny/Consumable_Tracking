@@ -7,7 +7,7 @@
   "dependencies": ["frontend", "http"],
   "after_dependencies": ["lovelace"],
   "requirements": [],
-  "version": "1.2.1",
+  "version": "1.2.2",
   "config_flow": true,
   "iot_class": "local_polling"
 }

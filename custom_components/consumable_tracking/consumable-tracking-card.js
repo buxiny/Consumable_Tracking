@@ -1,9 +1,9 @@
 /**
  * Home Assistant - Consumable Tracking Card (耗材与事务跟踪卡片)
- * Version: 1.2.1 [Theme-A: Tech Blue Ultra-Compact]
+ * Version: 1.2.2 [Theme-A: Tech Blue Ultra-Compact]
  */
 console.info(
-  '%c CONSUMABLE-TRACKING-CARD %c v1.2.1 [极致超紧凑] %c',
+  '%c CONSUMABLE-TRACKING-CARD %c v1.2.2 [极致超紧凑] %c',
   'background:#0284c7;color:#fff;padding:3px 6px;border-radius:3px 0 0 3px;font-weight:bold;font-size:11px;',
   'background:#38bdf8;color:#0f172a;padding:3px 6px;border-radius:0 3px 3px 0;font-weight:bold;font-size:11px;',
   'background:transparent;'
@@ -1391,10 +1391,62 @@ if (!window.customCards.some(c => c.type === 'consumable-tracking-card')) {
   });
 }
 
-// 3. 触发 Lovelace 视图重建事件（原生标准自愈，防止因异步加载时序延迟导致的错误卡片）
+// 3. 原生安全级自愈：根治 F5 刷新时因异步加载时序差偶现的“配置错误”
+function _rebuildErrorCards() {
+  function scan(root) {
+    if (!root) return;
+    try {
+      const tag = (root.tagName || '').toLowerCase();
+      if (tag === 'hui-card') {
+        const cfg = root.config || root._config;
+        const cType = cfg?.type || '';
+        if (cType.includes('consumable-tracking')) {
+          const el = root._element || root.firstElementChild;
+          // 仅在明确是错误卡片时才触发重建，杜绝任何误触
+          const isError = el && (el.tagName === 'HUI-ERROR-CARD' || (el.tagName && el.tagName.toLowerCase().includes('error')));
+          if (isError) {
+            if (typeof root.load === 'function') {
+              root.load();
+            } else {
+              el.dispatchEvent(new CustomEvent('ll-rebuild', { bubbles: true, composed: true }));
+            }
+          }
+        }
+      } else if (tag.includes('error-card')) {
+        const cfg = root.config || root._config;
+        const origType = cfg?.origConfig?.type || '';
+        const errMsg = cfg?.error || cfg?.message || '';
+        const text = root.textContent || '';
+        if (origType.includes('consumable-tracking') || errMsg.includes('consumable-tracking') || text.includes('consumable-tracking')) {
+          root.dispatchEvent(new CustomEvent('ll-rebuild', { bubbles: true, composed: true }));
+          const parentHui = root.closest('hui-card');
+          if (parentHui && typeof parentHui.load === 'function') {
+            parentHui.load();
+          }
+        }
+      }
+
+      if (root.shadowRoot) scan(root.shadowRoot);
+      const children = root.children;
+      if (children) {
+        for (let i = 0; i < children.length; i++) {
+          scan(children[i]);
+        }
+      }
+    } catch (_) {}
+  }
+
+  const ha = document.querySelector('home-assistant') || document.body;
+  if (ha) scan(ha);
+}
+
 try {
   window.dispatchEvent(new CustomEvent('ll-rebuild'));
-  setTimeout(() => {
-    window.dispatchEvent(new CustomEvent('ll-rebuild'));
-  }, 100);
+  _rebuildErrorCards();
+  [100, 300, 800, 1500].forEach((delay) => {
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('ll-rebuild'));
+      _rebuildErrorCards();
+    }, delay);
+  });
 } catch (_) {}
