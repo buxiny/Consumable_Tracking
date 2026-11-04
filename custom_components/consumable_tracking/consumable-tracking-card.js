@@ -1,9 +1,9 @@
 /**
  * Home Assistant - Consumable Tracking Card (耗材与事务跟踪卡片)
- * Version: 1.1.9 [Theme-A: Tech Blue Ultra-Compact]
+ * Version: 1.2.0 [Theme-A: Tech Blue Ultra-Compact]
  */
 console.info(
-  '%c CONSUMABLE-TRACKING-CARD %c v1.1.9 [极致超紧凑] %c',
+  '%c CONSUMABLE-TRACKING-CARD %c v1.2.0 [极致超紧凑] %c',
   'background:#0284c7;color:#fff;padding:3px 6px;border-radius:3px 0 0 3px;font-weight:bold;font-size:11px;',
   'background:#38bdf8;color:#0f172a;padding:3px 6px;border-radius:0 3px 3px 0;font-weight:bold;font-size:11px;',
   'background:transparent;'
@@ -27,6 +27,18 @@ class ConsumableTrackingCard extends HTMLElement {
     this._historyTargetItem = null;
     this._showActionMenuModal = false;
     this._actionMenuItem = null;
+    this._subscribed = false;
+    this._unsubEvents = null;
+  }
+
+  disconnectedCallback() {
+    if (this._unsubEvents) {
+      try {
+        this._unsubEvents();
+      } catch (_) {}
+      this._unsubEvents = null;
+    }
+    this._subscribed = false;
   }
 
   set hass(hass) {
@@ -104,11 +116,17 @@ class ConsumableTrackingCard extends HTMLElement {
     this._render();
   }
 
-  _subscribeEvents() {
+  async _subscribeEvents() {
+    if (this._subscribed) return;
     if (this._hass && this._hass.connection) {
-      this._hass.connection.subscribeEvents(() => {
-        this._fetchItems();
-      }, 'consumable_tracking_updated');
+      this._subscribed = true;
+      try {
+        this._unsubEvents = await this._hass.connection.subscribeEvents(() => {
+          this._fetchItems();
+        }, 'consumable_tracking_updated');
+      } catch (err) {
+        this._subscribed = false;
+      }
     }
   }
 
@@ -1335,167 +1353,10 @@ if (!window.customCards.some(c => c.type === 'consumable-tracking-card')) {
   });
 }
 
-// 3. 拦截与自愈体系：彻底根治 Lovelace 时序差造成的 "Custom element doesn't exist"
-// (1) 拦截 HuiCard 原型方法，若其子组件处于错误卡片状态，自动触发重新挂载
-(function _setupHuiCardWatcher() {
-  function patchHuiCardClass() {
-    try {
-      const HuiCard = customElements.get('hui-card');
-      if (!HuiCard || !HuiCard.prototype || HuiCard.prototype._ctObserverPatched) return;
-      HuiCard.prototype._ctObserverPatched = true;
-
-      const rebuildHuiCard = (instance) => {
-        try {
-          const cfg = instance.config || instance._config;
-          const cType = cfg?.type || '';
-          if (cType.includes('consumable-tracking')) {
-            const el = instance._element || instance.querySelector('hui-error-card') || instance.lastChild;
-            const isError = !el || el.tagName === 'HUI-ERROR-CARD' || (el.tagName && el.tagName.toLowerCase().includes('error')) || (el._config && el._config.error);
-            if (isError) {
-              instance._config = undefined;
-              instance.config = { ...cfg };
-            }
-          }
-        } catch (_) {}
-      };
-
-      const origUpdated = HuiCard.prototype.updated;
-      HuiCard.prototype.updated = function(changedProps) {
-        origUpdated?.call(this, changedProps);
-        rebuildHuiCard(this);
-      };
-
-      const origConnected = HuiCard.prototype.connectedCallback;
-      HuiCard.prototype.connectedCallback = function() {
-        origConnected?.call(this);
-        rebuildHuiCard(this);
-      };
-    } catch (_) {}
-  }
-
-  if (customElements.get('hui-card')) {
-    patchHuiCardClass();
-  } else {
-    customElements.whenDefined('hui-card').then(patchHuiCardClass);
-  }
-})();
-
-// (2) 拦截 HuiErrorCard 原型方法，如因异步竞态显示了 consumable-tracking-card 错误卡片，第一时间自动触发父级重绘
-(function _setupHuiErrorCardWatcher() {
-  function patchErrorClass() {
-    try {
-      const HuiErrorCard = customElements.get('hui-error-card');
-      if (!HuiErrorCard || !HuiErrorCard.prototype || HuiErrorCard.prototype._ctErrorPatched) return;
-      HuiErrorCard.prototype._ctErrorPatched = true;
-
-      const triggerParentRebuild = (errInstance) => {
-        try {
-          const cfg = errInstance._config || errInstance.config;
-          const origType = cfg?.origConfig?.type || '';
-          const errMsg = cfg?.error || '';
-          const shadow = errInstance.shadowRoot?.textContent || '';
-          if (origType.includes('consumable-tracking') || errMsg.includes('consumable-tracking') || shadow.includes('consumable-tracking')) {
-            const parent = errInstance.closest('hui-card') || errInstance.parentElement;
-            if (parent && (parent.config || parent._config)) {
-              const c = parent.config || parent._config;
-              parent._config = undefined;
-              parent.config = { ...c };
-            }
-          }
-        } catch (_) {}
-      };
-
-      const origFirstUpdated = HuiErrorCard.prototype.firstUpdated;
-      HuiErrorCard.prototype.firstUpdated = function(changedProps) {
-        origFirstUpdated?.call(this, changedProps);
-        triggerParentRebuild(this);
-      };
-
-      const origConnected = HuiErrorCard.prototype.connectedCallback;
-      HuiErrorCard.prototype.connectedCallback = function() {
-        origConnected?.call(this);
-        triggerParentRebuild(this);
-      };
-    } catch (_) {}
-  }
-
-  if (customElements.get('hui-error-card')) {
-    patchErrorClass();
-  } else {
-    customElements.whenDefined('hui-error-card').then(patchErrorClass);
-  }
-})();
-
-// (3) 深度 Shadow DOM 递归穿透扫描与就地自愈
-function _healConsumableTrackingErrorCards() {
-  function healCard(card) {
-    if (!card) return;
-    try {
-      const cfg = card.config || card._config;
-      const cType = cfg?.type || '';
-      if (!cType.includes('consumable-tracking')) return;
-
-      const el = card._element || card.querySelector('hui-error-card') || card.lastChild;
-      const isError = !el || el.tagName === 'HUI-ERROR-CARD' || (el.tagName && el.tagName.toLowerCase().includes('error')) || (el._config && el._config.error);
-
-      if (isError) {
-        card._config = undefined;
-        card.config = { ...cfg };
-      }
-    } catch (_) {}
-  }
-
-  function healError(errEl) {
-    if (!errEl) return;
-    try {
-      const cfg = errEl._config || errEl.config;
-      const origType = cfg?.origConfig?.type || '';
-      const errMsg = cfg?.error || '';
-      const shadow = errEl.shadowRoot ? (errEl.shadowRoot.textContent || '') : '';
-      if (origType.includes('consumable-tracking') || errMsg.includes('consumable-tracking') || shadow.includes('consumable-tracking')) {
-        const parent = errEl.closest('hui-card') || errEl.parentElement;
-        if (parent) {
-          healCard(parent);
-        }
-      }
-    } catch (_) {}
-  }
-
-  function scan(node) {
-    if (!node) return;
-    try {
-      const tag = (node.tagName || '').toLowerCase();
-      if (tag === 'hui-card') {
-        healCard(node);
-      } else if (tag.includes('error-card')) {
-        healError(node);
-      }
-
-      if (node.shadowRoot) scan(node.shadowRoot);
-      const children = node.children;
-      if (children) {
-        for (let i = 0; i < children.length; i++) {
-          scan(children[i]);
-        }
-      }
-    } catch (_) {}
-  }
-
-  try {
-    scan(document.querySelector('home-assistant') || document.body);
-  } catch (_) {}
-}
-
-// 多阶段静默自愈（无错误时零开销、零DOM操作）
-_healConsumableTrackingErrorCards();
-[60, 150, 350, 800, 1500, 3000, 6000].forEach((delay) => {
-  setTimeout(_healConsumableTrackingErrorCards, delay);
-});
-
-window.addEventListener('load', () => setTimeout(_healConsumableTrackingErrorCards, 100));
-window.addEventListener('location-changed', () => setTimeout(_healConsumableTrackingErrorCards, 100));
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') {
-    _healConsumableTrackingErrorCards();
-  }
-});
+// 3. 触发 Lovelace 视图重建事件（原生标准自愈，防止因异步加载时序延迟导致的错误卡片）
+try {
+  window.dispatchEvent(new CustomEvent('ll-rebuild'));
+  setTimeout(() => {
+    window.dispatchEvent(new CustomEvent('ll-rebuild'));
+  }, 100);
+} catch (_) {}
