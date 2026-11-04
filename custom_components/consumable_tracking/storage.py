@@ -157,6 +157,10 @@ class ConsumableStorage:
         result.sort(key=lambda x: (x.get("order", 999999), x.get("created_at", "")))
         return result
 
+    async def async_get_items(self) -> list[dict[str, Any]]:
+        """异步获取所有耗材数据."""
+        return self.get_items()
+
     def get_item(self, item_id: str) -> dict[str, Any] | None:
         """获取单个耗材."""
         it = self._items.get(item_id)
@@ -166,6 +170,10 @@ class ConsumableStorage:
         res["id"] = item_id
         res.update(compute_item_metrics(res))
         return res
+
+    async def async_get_item(self, item_id: str) -> dict[str, Any] | None:
+        """异步获取单个耗材."""
+        return self.get_item(item_id)
 
     async def async_save_item(self, data: dict[str, Any]) -> dict[str, Any]:
         """新建或更新耗材/事务."""

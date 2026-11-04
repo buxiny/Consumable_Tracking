@@ -1,7 +1,7 @@
 """耗材与事务跟踪常量定义 / Constants for Consumable Tracking."""
 
 DOMAIN = "consumable_tracking"
-VERSION = "1.2.0"
+VERSION = "1.2.1"
 STORAGE_KEY = "consumable_tracking"
 STORAGE_VERSION = 1
 

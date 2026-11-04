@@ -192,7 +192,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     )
 
     # 6. 注册 WebSocket API
-    async_register_websocket_api(hass, storage)
+    async_register_websocket_api(hass, storage, notify_mgr)
 
     # 5. 加载传感器平台
     hass.async_create_task(

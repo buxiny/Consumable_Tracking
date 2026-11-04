@@ -1,9 +1,9 @@
 /**
  * Home Assistant - Consumable Tracking Card (耗材与事务跟踪卡片)
- * Version: 1.2.0 [Theme-A: Tech Blue Ultra-Compact]
+ * Version: 1.2.1 [Theme-A: Tech Blue Ultra-Compact]
  */
 console.info(
-  '%c CONSUMABLE-TRACKING-CARD %c v1.2.0 [极致超紧凑] %c',
+  '%c CONSUMABLE-TRACKING-CARD %c v1.2.1 [极致超紧凑] %c',
   'background:#0284c7;color:#fff;padding:3px 6px;border-radius:3px 0 0 3px;font-weight:bold;font-size:11px;',
   'background:#38bdf8;color:#0f172a;padding:3px 6px;border-radius:0 3px 3px 0;font-weight:bold;font-size:11px;',
   'background:transparent;'
@@ -29,9 +29,15 @@ class ConsumableTrackingCard extends HTMLElement {
     this._actionMenuItem = null;
     this._subscribed = false;
     this._unsubEvents = null;
+    this._wsConnected = false;
+    this._retryTimer = null;
   }
 
   disconnectedCallback() {
+    if (this._retryTimer) {
+      clearTimeout(this._retryTimer);
+      this._retryTimer = null;
+    }
     if (this._unsubEvents) {
       try {
         this._unsubEvents();
@@ -42,12 +48,19 @@ class ConsumableTrackingCard extends HTMLElement {
   }
 
   set hass(hass) {
+    const wasInitial = !this._initialized;
     this._hass = hass;
-    if (!this._initialized) {
+    if (wasInitial) {
       this._initialized = true;
       this._fetchItems();
       this._subscribeEvents();
+    } else if (!this._wsConnected && this._hasLoadingItems()) {
+      this._fallbackFromSensors();
     }
+  }
+
+  _hasLoadingItems() {
+    return this._items.some(i => i.is_loading || (!i.start_date && !i.expected_end_date && !i.start_ym));
   }
 
   setConfig(config) {
@@ -77,11 +90,25 @@ class ConsumableTrackingCard extends HTMLElement {
       const items = await this._hass.callWS({
         type: 'consumable_tracking/list_items'
       });
-      this._items = Array.isArray(items) ? items : [];
-      this._render();
+      if (Array.isArray(items)) {
+        this._items = items;
+        this._wsConnected = true;
+        this._render();
+        return;
+      }
     } catch (err) {
-      // 兼容直接从 sensor.* 实体读取模式
-      this._fallbackFromSensors();
+      this._wsConnected = false;
+    }
+
+    // 降级：从 sensor 实体读取
+    this._fallbackFromSensors();
+
+    // 若 WebSocket 未就绪（例如集成启动中），2秒后自动尝试重连拉取完整数据
+    if (!this._wsConnected && !this._retryTimer) {
+      this._retryTimer = setTimeout(() => {
+        this._retryTimer = null;
+        this._fetchItems();
+      }, 2000);
     }
   }
 
@@ -92,26 +119,34 @@ class ConsumableTrackingCard extends HTMLElement {
       if (entityId.startsWith('sensor.consumable_')) {
         const stateObj = this._hass.states[entityId];
         const attrs = stateObj.attributes || {};
+        const isUnavailable = !stateObj.state || stateObj.state === 'unavailable' || stateObj.state === 'unknown';
+        const hasDates = Boolean(attrs.start_date || attrs.expected_end_date || attrs.start_ym);
+
+        const remDays = isUnavailable
+          ? (hasDates ? 0 : null)
+          : (Number(stateObj.state) || 0);
+
         items.push({
           id: attrs.item_id || entityId.replace('sensor.consumable_', ''),
           name: attrs.friendly_name || attrs.name || entityId,
           category: attrs.category || '通用',
           icon: attrs.icon || 'mdi:package-variant',
-          start_date: attrs.start_date,
-          start_ym: attrs.start_ym,
-          expected_end_date: attrs.expected_end_date,
-          expected_ym: attrs.expected_ym,
+          start_date: attrs.start_date || '',
+          start_ym: attrs.start_ym || '',
+          expected_end_date: attrs.expected_end_date || '',
+          expected_ym: attrs.expected_ym || '',
           duration_value: attrs.duration_value || 12,
           duration_unit: attrs.duration_unit || 'month',
-          remaining_days: Number(stateObj.state) || 0,
-          progress: attrs.progress || 0,
+          remaining_days: remDays,
+          progress: hasDates ? (Number(attrs.progress) || 0) : 0,
           status: attrs.status || 'good',
           note: attrs.note || '',
-          history: attrs.history || []
+          history: attrs.history || [],
+          is_loading: isUnavailable && !hasDates
         });
       }
     });
-    items.sort((a, b) => a.remaining_days - b.remaining_days);
+    items.sort((a, b) => (a.remaining_days ?? 9999) - (b.remaining_days ?? 9999));
     this._items = items;
     this._render();
   }
@@ -700,6 +735,9 @@ class ConsumableTrackingCard extends HTMLElement {
   }
 
   _getCenterProgressText(item) {
+    if (item.is_loading || item.remaining_days === null || item.remaining_days === undefined || (!item.start_date && !item.expected_end_date && !item.start_ym)) {
+      return '数据同步中...';
+    }
     const pct = Math.round(Number(item.progress) || 0);
     if (item.remaining_days < 0) {
       return `已超期 ${Math.abs(item.remaining_days)} 天(0%)`;

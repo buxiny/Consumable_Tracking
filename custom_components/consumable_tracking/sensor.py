@@ -30,28 +30,36 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """通过 UI 流程 (ConfigEntry) 设置传感器实体。"""
-    storage = hass.data[DOMAIN]["storage"]
-    items = await storage.async_get_items()
+    data = hass.data.get(DOMAIN)
+    if not data:
+        return
 
-    entities = [ConsumableSensorEntity(hass, item) for item in items]
+    storage = data["storage"]
+    items = storage.get_items()
+
+    entities = [ConsumableSensor(hass, storage, item["id"]) for item in items]
     async_add_entities(entities, update_before_add=True)
 
-    async def _async_handle_item_updated(event) -> None:
+    async def _async_handle_item_updated(event: Any) -> None:
         """当耗材项增删改时，动态更新或添加传感器实体。"""
-        current_items = await storage.async_get_items()
-        current_ids = {i["id"] for i in current_items}
-        existing_ids = {e._item_id for e in entities}
-        new_entities = []
-        for item in current_items:
-            if item["id"] not in existing_ids:
-                new_ent = ConsumableSensorEntity(hass, item)
+        action = event.data.get("action")
+        if action == "save":
+            item = event.data.get("item", {})
+            item_id = item.get("id")
+            existing = [e for e in entities if e.item_id == item_id]
+            if not existing and item_id:
+                new_ent = ConsumableSensor(hass, storage, item_id)
                 entities.append(new_ent)
-                new_entities.append(new_ent)
-        if new_entities:
-            async_add_entities(new_entities, update_before_add=True)
+                async_add_entities([new_ent], update_before_add=True)
+            else:
+                for ent in existing:
+                    ent.async_schedule_update_ha_state(force_refresh=True)
+        elif action in ("reset", "delete"):
+            for ent in entities:
+                ent.async_schedule_update_ha_state(force_refresh=True)
 
     entry.async_on_unload(
-        hass.bus.async_listen(f"{DOMAIN}_items_updated", _async_handle_item_updated)
+        hass.bus.async_listen(f"{DOMAIN}_updated", _async_handle_item_updated)
     )
 
 
