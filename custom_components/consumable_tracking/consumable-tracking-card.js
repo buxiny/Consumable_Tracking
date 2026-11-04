@@ -390,7 +390,7 @@ class ConsumableTrackingCard extends HTMLElement {
           position: relative;
           width: 100%;
           height: 28px;
-          background: #334155;
+          background: #ADADAD;
           border-radius: 14px;
           overflow: hidden;
           display: flex;
